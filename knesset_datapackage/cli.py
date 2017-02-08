@@ -24,6 +24,7 @@ def make_datapackage():
     parser.add_argument('--all-committees', action="store_true", help="committees resource: fetch all committees, including historical")
     parser.add_argument('--main-committees', action="store_true", help="committees resource: fetch only the active main committees")
     parser.add_argument('--member-id', nargs="*", type=int, help="members resource: fetch only the given member id/s")
+    parser.add_argument('--committee-meeting-id', nargs="*", type=int, help="only make data for given committee meeting ids")
 
     args = parser.parse_args()
 
@@ -36,7 +37,7 @@ def make_datapackage():
     logging.root.setLevel(logLevel)
     logger = logging.getLogger()
 
-    data_root = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
+    data_root = os.path.join(os.path.dirname(__file__), '..', 'data')
     if not os.path.exists(data_root):
         os.mkdir(data_root)
 
@@ -69,7 +70,8 @@ def make_datapackage():
                                            committee_ids=args.committee_id,
                                            debug=args.debug,
                                            proxies=proxies,
-                                           member_ids=args.member_id)
+                                           member_ids=args.member_id,
+                                           committee_meeting_ids=args.committee_meeting_id)
 
     if args.zip:
         logger.info('creating datapackage.zip')

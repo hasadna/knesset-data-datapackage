@@ -5,6 +5,7 @@ set -e  # exit on errors
 [ -f .travis/.env ] && source .travis/.env
 
 pip install --upgrade pip
+pip install git+https://github.com/turnkeylinux/octohub.git
 pip install .
 
 if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ] && [ "${DATAPACKAGE_SSH_PROXY_HOST}" != "" ]; then

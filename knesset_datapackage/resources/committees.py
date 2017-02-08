@@ -62,18 +62,21 @@ class CommitteeMeetingsResource(CsvResource):
             self.logger.info('appending committee meetings since {} for committee {}'.format(fromdate, committee.id))
             meeting = empty = object()
             for meeting in CommitteeMeeting.get(committee.id, fromdate, proxies=proxies):
-                scraper_errors = []
-                if self._protocols_resource:
-                    try:
-                        self._protocols_resource.append_for_meeting(committee, meeting, **make_kwargs)
-                    except Exception, e:
-                        scraper_errors.append("exception generating protocols resource: {}".format(e))
-                        self.logger.warning("exception generating protocols resource, will continue to next meeting")
-                        self.logger.exception(e)
-                self.logger.debug('append committee meeting {}'.format(meeting.id))
-                row = meeting.all_field_values()
-                row["scraper_errors"] = "\n".join(scraper_errors)
-                self._append(row)
+                if not make_kwargs.get('committee_meeting_ids') or int(meeting.id) in make_kwargs.get('committee_meeting_ids'):
+                    scraper_errors = []
+                    if self._protocols_resource:
+                        try:
+                            self._protocols_resource.append_for_meeting(committee, meeting, **make_kwargs)
+                        except Exception, e:
+                            scraper_errors.append("exception generating protocols resource: {}".format(e))
+                            self.logger.warning("exception generating protocols resource, will continue to next meeting")
+                            self.logger.exception(e)
+                    self.logger.debug('append committee meeting {}'.format(meeting.id))
+                    row = meeting.all_field_values()
+                    row["scraper_errors"] = "\n".join(scraper_errors)
+                    self._append(row)
+                else:
+                    meeting = empty
             if meeting == empty:
                 self.logger.debug('no meetings')
 

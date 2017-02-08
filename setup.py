@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 import os
+import time
+
 
 if os.path.exists("VERSION.txt"):
     # this file can be written by CI tools (e.g. Travis)
     with open("VERSION.txt") as version_file:
         version = version_file.read().strip().strip("v")
 else:
-    version = "0.0.0"
+    version = str(time.time())
 
 setup(
     name='knesset-datapackage',
