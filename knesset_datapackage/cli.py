@@ -37,7 +37,7 @@ def make_datapackage():
     logging.root.setLevel(logLevel)
     logger = logging.getLogger()
 
-    data_root = os.path.join(os.path.dirname(__file__), '..', 'data')
+    data_root = os.path.join(os.getcwd(), 'data')
     if not os.path.exists(data_root):
         os.mkdir(data_root)
 

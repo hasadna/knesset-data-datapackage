@@ -6,6 +6,7 @@ set -e  # exit on errors
 
 pip install --upgrade pip
 pip install git+https://github.com/turnkeylinux/octohub.git
+pip install PySocks
 pip install .
 
 if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ] && [ "${DATAPACKAGE_SSH_PROXY_HOST}" != "" ]; then

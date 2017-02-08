@@ -39,6 +39,7 @@ upload_datapackage() {
         if ! which aws; then
             pip install awscli
         fi
+        export LC_ALL=C
         if aws s3 cp "${src}" "s3://${dst}" --acl=public-read; then
             echo "OK"
             return 0
@@ -56,12 +57,8 @@ make_datapackage() {
     if [[ "${BUILD_DATAPACKAGE_BRANCHES}" == *"${TRAVIS_BRANCH}"* ]]; then
         mkdir -p data
         if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ]; then
-            pushd python > /dev/null
-                echo "making datapackage for last ${DATAPACKAGE_LAST_DAYS} days"
-                make_knesset_datapackage --days "${DATAPACKAGE_LAST_DAYS}" --debug --zip --http-proxy "socks5://localhost:8123"
-                local make_datapackage_result=$?
-            popd > /dev/null
-            if [ $make_datapackage_result == 0 ]; then
+            echo "making datapackage for last ${DATAPACKAGE_LAST_DAYS} days"
+            if make_knesset_datapackage --days "${DATAPACKAGE_LAST_DAYS}" --debug --zip --http-proxy "socks5://localhost:8123"; then
                 echo "OK"
                 return 0
             else
