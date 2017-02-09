@@ -75,6 +75,17 @@ make_datapackage() {
     fi
 }
 
+run_tests() {
+    echo "running tests"
+    if bin/run_tests.sh; then
+        echo "OK"
+        return 0
+    else
+        echo "Tests failed"
+        return 1
+    fi
+}
+
 exit_error() {
     exit 1
 }
@@ -94,14 +105,18 @@ exit_success() {
 
 ### main ###
 
-if make_datapackage; then
-    DATAPACKAGE_FILENAME="datapackage_last_${DATAPACKAGE_LAST_DAYS}_days_`date "+%Y-%m-%d_%H-%M"`.zip"
-    if upload_datapackage "data/datapackage.zip" "${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"; then
-        DATAPACKAGE_URL="https://s3.amazonaws.com/${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"
+if run_tests; then
+    if make_datapackage; then
+        DATAPACKAGE_FILENAME="datapackage_last_${DATAPACKAGE_LAST_DAYS}_days_`date "+%Y-%m-%d_%H-%M"`.zip"
+        if upload_datapackage "data/datapackage.zip" "${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"; then
+            DATAPACKAGE_URL="https://s3.amazonaws.com/${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"
+        elif [ $? == 1 ]; then
+            exit_error
+        fi
     elif [ $? == 1 ]; then
         exit_error
     fi
-elif [ $? == 1 ]; then
+else
     exit_error
 fi
 

@@ -6,7 +6,6 @@ Simple interface to the relevant classes that do the actual work
 from knesset_datapackage.root import RootDatapackage
 import os
 import logging
-import sys
 import argparse
 import zipfile
 from .utils import setup_logging, setup_datapath
@@ -56,24 +55,18 @@ def make_datapackage():
     if len(proxies) > 0:
         logger.info('using proxies: {}'.format(proxies))
 
-    RootDatapackage(datapackage_root).make(days=args.days,
-                                           force=args.force,
-                                           exclude=args.exclude,
-                                           include=args.include,
-                                           committee_ids=args.committee_id,
-                                           debug=args.debug,
-                                           proxies=proxies,
-                                           member_ids=args.member_id,
-                                           committee_meeting_ids=args.committee_meeting_id)
+    datapackage = RootDatapackage(datapackage_root).make(days=args.days,
+                                                         force=args.force,
+                                                         exclude=args.exclude,
+                                                         include=args.include,
+                                                         committee_ids=args.committee_id,
+                                                         debug=args.debug,
+                                                         proxies=proxies,
+                                                         member_ids=args.member_id,
+                                                         committee_meeting_ids=args.committee_meeting_id)
 
     if args.zip:
         logger.info('creating datapackage.zip')
-        zipf = zipfile.ZipFile(os.path.join(data_root, "datapackage.zip"), 'w', zipfile.ZIP_DEFLATED)
-        for root, dirs, files in os.walk(datapackage_root):
-            for file in files:
-                real_file = os.path.join(root, file)
-                rel_file = real_file.replace(data_root, "")
-                zipf.write(real_file, rel_file)
-        zipf.close()
+        datapackage.save_to_zip(os.path.join(data_root, "datapackage.zip"), data_root)
 
     logger.info('GREAT SUCCESS!')

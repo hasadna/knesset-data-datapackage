@@ -6,6 +6,7 @@ import json
 import csv
 from collections import OrderedDict
 import iso8601
+import zipfile
 
 
 class BaseResource(Resource):
@@ -70,10 +71,8 @@ class CsvResource(BaseTabularResource):
 
     def __init__(self, name=None, parent_datapackage_path=None, json_table_schema=None):
         super(CsvResource, self).__init__(name, parent_datapackage_path)
-        self.descriptor.update({
-            "path": "{}.csv".format(name),
-            "schema": json_table_schema
-        })
+        self.descriptor.update({"path": "{}.csv".format(name),
+                                "schema": json_table_schema})
 
     def _get_field_csv_value(self, val, schema):
         if val is None:
@@ -256,3 +255,17 @@ class BaseDatapackage(DataPackage):
         if not hasattr(self, '_logger'):
             self._logger = logging.getLogger(self.__module__.replace("knesset_data.", ""))
         return self._logger
+
+    def save_to_zip(self, zip_file_name, data_root):
+        with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(self.base_path):
+                for file in files:
+                    real_file = os.path.join(root, file)
+                    rel_file = real_file.replace(data_root, "")
+                    zipf.write(real_file, rel_file)
+
+    @classmethod
+    def load_from_zip(cls, zip_file_name, data_root):
+        with zipfile.ZipFile(zip_file_name, 'r') as zipf:
+            zipf.extractall(data_root)
+        return os.path.join(data_root, "datapackage")
