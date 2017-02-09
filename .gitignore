@@ -38,3 +38,5 @@ nosetests.xml
 .idea
 /VERSION.txt
 /.travis/.env
+.ipynb_checkpoints
+*.ipynb

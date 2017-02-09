@@ -54,7 +54,7 @@ upload_datapackage() {
 }
 
 make_datapackage() {
-    if [[ "${BUILD_DATAPACKAGE_BRANCHES}" == *"${TRAVIS_BRANCH}"* ]]; then
+    if [[ "${BUILD_DATAPACKAGE_BRANCHES}" == *"${TRAVIS_BRANCH}"* ]] && ( [ "${TRAVIS_EVENT_TYPE}" == "cron" ] || [ "${TRAVIS_TAG}" != "" ] ); then
         mkdir -p data
         if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ]; then
             echo "making datapackage for last ${DATAPACKAGE_LAST_DAYS} days"
@@ -70,7 +70,7 @@ make_datapackage() {
             return 2
         fi
     else
-        echo "skipping datapackage creation because branch is not in datapackage branches"
+        echo "skipping datapackage creation"
         return 2
     fi
 }
