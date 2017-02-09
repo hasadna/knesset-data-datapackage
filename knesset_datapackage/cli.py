@@ -9,6 +9,7 @@ import logging
 import sys
 import argparse
 import zipfile
+from .utils import setup_logging, setup_datapath
 
 
 def make_datapackage():
@@ -28,18 +29,10 @@ def make_datapackage():
 
     args = parser.parse_args()
 
-    logLevel = logging.DEBUG if args.debug else logging.INFO
-    [logging.root.removeHandler(handler) for handler in tuple(logging.root.handlers)]
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setFormatter(logging.Formatter("%(name)s:%(lineno)d\t%(levelname)s\t%(message)s"))
-    stdout_handler.setLevel(logLevel)
-    logging.root.addHandler(stdout_handler)
-    logging.root.setLevel(logLevel)
+    setup_logging(debug=args.debug)
     logger = logging.getLogger()
 
-    data_root = os.path.join(os.getcwd(), 'data')
-    if not os.path.exists(data_root):
-        os.mkdir(data_root)
+    data_root = setup_datapath()
 
     datapackage_root = os.path.join(data_root, 'datapackage')
 

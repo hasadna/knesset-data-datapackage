@@ -23,7 +23,7 @@ class CommitteesResource(BaseKnessetDataServiceCollectionResource):
     default_getter_type = "active"
     enable_pre_append = True
 
-    def __init__(self, name, parent_datapackage_path, meetings_resource):
+    def __init__(self, name=None, parent_datapackage_path=None, meetings_resource=None):
         self._meetings_resource = meetings_resource
         super(CommitteesResource, self).__init__(name, parent_datapackage_path)
 
@@ -48,7 +48,7 @@ class CommitteeMeetingsResource(CsvResource):
     if __init__ gets a protocols resource it will pass every meeting over to that resource to save the corresponding protocol
     """
 
-    def __init__(self, name, parent_datapackage_path, protocols_resource=None):
+    def __init__(self, name=None, parent_datapackage_path=None, protocols_resource=None):
         self._protocols_resource = protocols_resource
         json_table_schema = CommitteeMeeting.get_json_table_schema()
         json_table_schema["fields"].append({"type": "string",

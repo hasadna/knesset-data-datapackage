@@ -20,6 +20,6 @@ setup(
     license='GPLv3',
     url='https://github.com/hasadna/knesset-data-datapackage',
     packages=find_packages(exclude=["tests", "test.*"]),
-    install_requires=['knesset-data', 'datapackage'],
+    install_requires=['knesset-data', 'datapackage', 'iso8601'],
     entry_points={'console_scripts': ['make_knesset_datapackage = knesset_datapackage.cli:make_datapackage']}
 )

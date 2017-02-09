@@ -4,17 +4,29 @@ import os
 import logging
 import json
 import csv
+from collections import OrderedDict
+import iso8601
 
 
 class BaseResource(Resource):
 
-    def __init__(self, name, parent_datapackage_path, descriptor=None):
+    def __init__(self, name=None, parent_datapackage_path=None, descriptor=None):
         if not descriptor:
             descriptor = {}
         descriptor["name"] = name
-        super(BaseResource, self).__init__(descriptor, os.path.join(parent_datapackage_path, name))
+        if name and parent_datapackage_path:
+            default_base_path = os.path.join(parent_datapackage_path, name)
+        else:
+            default_base_path = None
+        super(BaseResource, self).__init__(descriptor, default_base_path)
 
     def make(self, **kwargs):
+        # make the resource and store in base_path
+        raise NotImplementedError()
+
+    def fetch(self, **kwargs):
+        # if base_path contains some data - return a generator that yields this data
+        # otherwise - generate the data and yield it
         raise NotImplementedError()
 
     def _skip_resource(self, include=None, exclude=None, **kwargs):
@@ -56,7 +68,7 @@ class BaseTabularResource(BaseResource, TabularResource):
 
 class CsvResource(BaseTabularResource):
 
-    def __init__(self, name, parent_datapackage_path, json_table_schema):
+    def __init__(self, name=None, parent_datapackage_path=None, json_table_schema=None):
         super(CsvResource, self).__init__(name, parent_datapackage_path)
         self.descriptor.update({
             "path": "{}.csv".format(name),
@@ -87,6 +99,15 @@ class CsvResource(BaseTabularResource):
             self.logger.warn("failed to encode value for {}".format(schema["name"]))
             return ""
 
+    def _get_field_original_value(self, csv_val, schema):
+        val = csv_val.decode('utf8')
+        if schema["type"] == "datetime":
+            return iso8601.parse_date(val)
+        elif schema["type"] == "integer":
+            return int(val)
+        else:
+            return val
+
     def _data_generator(self, **make_kwargs):
         # if you want to use stream generation - you should return a generator here
         # alternatively - leave this function as is and use _append to add rows to the csv file
@@ -95,15 +116,16 @@ class CsvResource(BaseTabularResource):
     def _append(self, row, **make_kwargs):
         if not self._skip_resource(**make_kwargs):
             # append a row to the csv file (creates the file and header if does not exist)
-            csv_path = "{}.csv".format(self._base_path)
+            if not self.csv_path:
+                raise Exception('cannot append without a path')
             fields = self.descriptor["schema"]["fields"]
             if not hasattr(self, "_csv_file_initialized"):
                 self._csv_file_initialized = True
-                self.logger.info('writing csv resource to: {}'.format(csv_path))
-                with open(csv_path, 'wb') as csv_file:
+                self.logger.info('writing csv resource to: {}'.format(self.csv_path))
+                with open(self.csv_path, 'wb') as csv_file:
                     csv_writer = csv.writer(csv_file)
                     csv_writer.writerow([field["name"] for field in fields])
-            with open(csv_path, 'ab') as csv_file:
+            with open(self.csv_path, 'ab') as csv_file:
                 csv_writer = csv.writer(csv_file)
                 csv_row = []
                 for field in fields:
@@ -111,11 +133,37 @@ class CsvResource(BaseTabularResource):
                     csv_row.append(value)
                 csv_writer.writerow(csv_row)
 
+    @property
+    def csv_path(self):
+        if self._base_path:
+            return "{}.csv".format(self._base_path)
+        else:
+            return None
+
     def make(self, **kwargs):
         if not self._skip_resource(**kwargs):
             for row in self._data_generator(**kwargs):
                 self._append(row)
             return True
+
+    def fetch(self, **kwargs):
+        if not self._skip_resource(**kwargs):
+            if self.csv_path and os.path.exists(self.csv_path):
+                with open(self.csv_path, 'rb') as csv_file:
+                    csv_reader = csv.reader(csv_file)
+                    header_row = None
+                    for row in csv_reader:
+                        if not header_row:
+                            header_row = row
+                        else:
+                            csv_row = OrderedDict(zip(header_row, row))
+                            parsed_row = []
+                            for field in self.descriptor["schema"]["fields"]:
+                                parsed_row.append((field["name"], self._get_field_original_value(csv_row[field["name"]], field)))
+                            yield OrderedDict(parsed_row)
+            else:
+                for row in self._data_generator(**kwargs):
+                    yield row
 
 
 class FilesResource(BaseResource):
@@ -132,6 +180,8 @@ class FilesResource(BaseResource):
     def _append(self, file_path, **make_kwargs):
         if not self._skip_resource(**make_kwargs):
             # append a file (which was already created and saved)
+            if not self._base_path:
+                raise Exception("cannot append without base_path")
             self.descriptor["path"].append(file_path.replace(self._base_path+"/", ""))
 
     def make(self, **kwargs):
@@ -178,6 +228,15 @@ class BaseDatapackage(DataPackage):
     @property
     def resources(self):
         return self._resources
+
+    def get_resource(self, name):
+        matching_resources = [resource for resource in self.resources if resource.descriptor["name"] == name]
+        if len(matching_resources) == 1:
+            return matching_resources[0]
+        elif len(matching_resources) == 0:
+            raise LookupError("could not find resource with name {}".format(name))
+        else:
+            raise LookupError("found more then 1 resource with name {}".format(name))
 
     def make(self, **kwargs):
         self.logger.info('making datapackage: "{}", base path: "{}"'.format(self.descriptor["name"], self.base_path))
