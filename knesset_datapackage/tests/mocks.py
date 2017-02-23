@@ -64,5 +64,20 @@ class DummyFilesResource(FilesResource):
 
 
 class DummyCsvFilesResource(CsvFilesResource):
-    pass
 
+    def __init__(self, name=None, parent_datapackage_path=None):
+        super(DummyCsvFilesResource, self).__init__(name, parent_datapackage_path,
+                                                    {"fields": [{"name": "name", "type": "string"},
+                                                                {"name": "text file", "type": "string"},
+                                                                {"name": "doc file", "type": "string"}]},
+                                                    file_fields=("text file", "doc file"))
+
+    def _data_generator(self, **make_kwargs):
+        if not os.path.exists(self._base_path):
+            os.mkdir(self._base_path)
+        for filename, content in [("hello_world.doc", "hello there! (IN DOC FORMAT!)"), ("hello_world.txt", "hello there!"),
+                                  ("goodbye_world.doc", "goodbye DOC"), ("goodbye_world.txt", "goodbye TXT")]:
+            with open(os.path.join(self._base_path, filename), "w") as f:
+                f.write(content)
+        yield {"name": "hello world", "text file": "hello_world.txt", "doc file": "hello_world.doc"}
+        yield {"name": "goodbye world", "text file": "goodbye_world.txt", "doc file": "goodbye_world.doc"}

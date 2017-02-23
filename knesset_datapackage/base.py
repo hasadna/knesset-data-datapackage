@@ -216,24 +216,31 @@ class FilesResource(BaseResource):
 
 
 class CsvFilesResource(CsvResource, FilesResource):
+    """
+    resource is same as CsvResource but with support for files with file paths in a csv column
+     __init__ gets a file_fields which contains a list of field names that contain file paths
+     you are responsible to write the files to those paths and add the path (relative to the base_path) to the csv row
+    """
 
-    def __init__(self, name, parent_datapackage_path, json_table_schema):
+    def __init__(self, name, parent_datapackage_path, json_table_schema, file_fields):
         CsvResource.__init__(self, name, parent_datapackage_path, json_table_schema)
+        # the descriptor path for csv is a single path to the csv file
+        # we change it here so that the csv file will be the first path in a list of paths
         self.descriptor["path"] = [self.descriptor["path"]]
+        # name of the csv columns that contain paths to a file
+        # used to populate the descriptor path with all the files
+        self._file_fields = file_fields
 
-    def _append(self, **kwargs):
-        raise Exception("please use _append_file or _append_csv instead")
-
-    def _append_file(self, file_path, **make_kwargs):
-        FilesResource._append(self, file_path, **make_kwargs)
-
-    def _append_csv(self, row, **make_kwargs):
+    def _append(self, row, **make_kwargs):
+        """
+        same as the csv resource append
+        the row you append should contain the file fields (as specified in __init__ file_fields parameter
+        the paths from the file fields will be added to the descriptor paths
+        :param row: OrderedDict of the csv row to append (must match the json_table_schema)
+        :param make_kwargs: the global datapackage make_kwargs
+        """
+        [FilesResource._append(self, row[field]) for field in self._file_fields]
         CsvResource._append(self, row, **make_kwargs)
-
-    def make(self, **kwargs):
-        if not self._skip_resource(**kwargs):
-            return (FilesResource.make(self, **kwargs)
-                    and CsvResource.make(self, **kwargs))
 
 
 class BaseDatapackage(DataPackage):
