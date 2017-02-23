@@ -91,7 +91,8 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                                                                             {"type": "string", "name": "text"},
                                                                             {"type": "string", "name": "parts"},
                                                                             {"type": "string", "name": "original"},
-                                                                            {"type": "string", "name": "attending_members"}]})
+                                                                            {"type": "string", "name": "attending_members"}]},
+                                                                file_fields=["text", "parts", "original"])
 
     def append_for_meeting(self, committee_id, meeting_id, meeting_datetime, meeting_protocol, **make_kwargs):
         if not self._skip_resource(**make_kwargs) and meeting_protocol:
@@ -117,30 +118,42 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                 os.mkdir(abs_meeting_path)
             # parse the protocol and save
             with meeting_protocol as protocol:
+                # the csv row
+                row = {"committee_id": committee_id,
+                       "meeting_id": meeting_id,
+                       "text": rel_text_file_path.lstrip("/"),
+                       "parts": rel_parts_file_path.lstrip("/"),
+                       "original": rel_original_file_path.lstrip("/"),
+                       "attending_members": ""}
+                # original
+                try:
+                    shutil.copyfile(protocol.file_name, abs_original_file_path)
+                except Exception, e:
+                    row["original"] = "ERROR: {}".format(e)
+                    self.logger.exception(e)
                 # text
                 with open(abs_text_file_path, 'w') as f:
-                    f.write(protocol.text.encode('utf8'))
+                    try:
+                        f.write(protocol.text.encode('utf8'))
+                    except Exception, e:
+                        row["text"] = "ERROR: {}".format(e)
+                        self.logger.exception(e)
                 # parts
                 with open(abs_parts_file_path, 'wb') as f:
                     csv_writer = csv.writer(f)
                     csv_writer.writerow(["header", "body"])
-                    for part in protocol.parts:
-                        csv_writer.writerow([part.header.encode('utf8'), part.body.encode('utf8')])
-                # original
-                shutil.copyfile(protocol.file_name, abs_original_file_path)
+                    try:
+                        for part in protocol.parts:
+                            csv_writer.writerow([part.header.encode('utf8'), part.body.encode('utf8')])
+                    except Exception, e:
+                        row["parts"] = "ERROR: {}".format(e)
+                        self.logger.exception(e)
                 # attending members
                 if self._members_resoure:
-                    attending_member_names = protocol.find_attending_members([u"{} {}".format(member.first_name, member.name) for member
-                                                                              in self._members_resoure.get_generated_objects()])
-                    attending_member_names = u", ".join(attending_member_names)
-                else:
-                    attending_member_names = ""
-                self._append_file(abs_text_file_path, **make_kwargs)
-                self._append_file(abs_parts_file_path, **make_kwargs)
-                self._append_file(abs_original_file_path, **make_kwargs)
-                self._append_csv({"committee_id": committee_id,
-                                  "meeting_id": meeting_id,
-                                  "text": rel_text_file_path.lstrip("/"),
-                                  "parts": rel_parts_file_path.lstrip("/"),
-                                  "original": rel_original_file_path.lstrip("/"),
-                                  "attending_members": attending_member_names}, **make_kwargs)
+                    try:
+                        row["attending_members"] = u", ".join(protocol.find_attending_members([u"{} {}".format(member.first_name, member.name) for member
+                                                                                               in self._members_resoure.get_generated_objects()]))
+                    except Exception, e:
+                        row["attending_members"] = "ERROR: {}".format(e)
+                        self.logger.exception(e)
+                self._append(row, **make_kwargs)
