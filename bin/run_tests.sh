@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-python -m unittest ${*:-discover}
+python -m unittest ${*:-discover -v}

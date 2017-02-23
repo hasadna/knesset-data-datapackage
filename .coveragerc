@@ -1,0 +1,6 @@
+[run]
+include =
+    knesset_datapackage/*
+omit =
+    knesset_datapackage/tests/*
+

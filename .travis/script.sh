@@ -77,7 +77,7 @@ make_datapackage() {
 
 run_tests() {
     echo "running tests"
-    if bin/run_tests.sh; then
+    if bin/run_coverage.sh; then
         echo "OK"
         return 0
     else
