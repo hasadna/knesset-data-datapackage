@@ -55,15 +55,16 @@ def make_datapackage():
     if len(proxies) > 0:
         logger.info('using proxies: {}'.format(proxies))
 
-    datapackage = RootDatapackage(datapackage_root).make(days=args.days,
-                                                         force=args.force,
-                                                         exclude=args.exclude,
-                                                         include=args.include,
-                                                         committee_ids=args.committee_id,
-                                                         debug=args.debug,
-                                                         proxies=proxies,
-                                                         member_ids=args.member_id,
-                                                         committee_meeting_ids=args.committee_meeting_id)
+    datapackage = RootDatapackage(datapackage_root)
+    datapackage.make(days=args.days,
+                     force=args.force,
+                     exclude=args.exclude,
+                     include=args.include,
+                     committee_ids=args.committee_id,
+                     debug=args.debug,
+                     proxies=proxies,
+                     member_ids=args.member_id,
+                     committee_meeting_ids=args.committee_meeting_id)
 
     if args.zip:
         logger.info('creating datapackage.zip')
