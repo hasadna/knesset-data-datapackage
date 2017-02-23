@@ -54,6 +54,11 @@ upload_datapackage() {
 }
 
 make_datapackage() {
+    echo "BUILD_DATAPACKAGE_BRANCHES=${BUILD_DATAPACKAGE_BRANCHES}"
+    echo "TRAVIS_BRANCH=${TRAVIS_BRANCH}"
+    echo "TRAVIS_EVENT_TYPE=${TRAVIS_EVENT_TYPE}"
+    echo "TRAVIS_TAG=${TRAVIS_TAG}"
+    echo "DATAPACKAGE_LAST_DAYS=${DATAPACKAGE_LAST_DAYS}"
     if [[ "${BUILD_DATAPACKAGE_BRANCHES}" == *"${TRAVIS_BRANCH}"* ]] && ( [ "${TRAVIS_EVENT_TYPE}" == "cron" ] || [ "${TRAVIS_TAG}" != "" ] ); then
         mkdir -p data
         if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ]; then
@@ -70,7 +75,7 @@ make_datapackage() {
             return 2
         fi
     else
-        echo "skipping datapackage creation"
+        echo "skipping datapackage creation (we create a datapackage only for crons and published releases)"
         return 2
     fi
 }
