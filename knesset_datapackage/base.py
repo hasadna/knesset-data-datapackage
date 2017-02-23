@@ -22,12 +22,22 @@ class BaseResource(Resource):
         super(BaseResource, self).__init__(descriptor, default_base_path)
 
     def make(self, **kwargs):
-        # make the resource and store in base_path
+        # make the resource and store it in base_path
+        # should use fetch function to get each portion of data, then store it
+        # be sure to check _skip_resource - which logs some info messages and checks if resource should be skipped
         raise NotImplementedError()
 
     def fetch(self, **kwargs):
-        # if base_path contains some data - return a generator that yields this data
-        # otherwise - generate the data and yield it
+        # fetch fresh data based on the given kwargs
+        # should return a generator which yields each portion of data (e.g. each row)
+        # be sure to check _skip_resource - which logs some info messages and checks if resource should be skipped
+        raise NotImplementedError()
+
+    def fetch_from_datapackage(self, **kwargs):
+        # fetch data from a previously fetched datapackage
+        # kwargs which affect fetching of the data will be ignored - as data was already fetched
+        # should return a generator which yields each portion of data (e.g. each row)
+        # be sure to check _skip_resource - which logs some info messages and checks if resource should be skipped
         raise NotImplementedError()
 
     def _skip_resource(self, include=None, exclude=None, **kwargs):
@@ -101,9 +111,9 @@ class CsvResource(BaseTabularResource):
     def _get_field_original_value(self, csv_val, schema):
         val = csv_val.decode('utf8')
         if schema["type"] == "datetime":
-            return iso8601.parse_date(val)
+            return iso8601.parse_date(val, default_timezone=None) if val != '' else None
         elif schema["type"] == "integer":
-            return int(val)
+            return int(val) if val != '' else None
         else:
             return val
 
@@ -141,12 +151,19 @@ class CsvResource(BaseTabularResource):
 
     def make(self, **kwargs):
         if not self._skip_resource(**kwargs):
-            for row in self._data_generator(**kwargs):
+            for row in self.fetch(**kwargs):
                 self._append(row)
             return True
 
     def fetch(self, **kwargs):
         if not self._skip_resource(**kwargs):
+            for row in self._data_generator(**kwargs):
+                yield row
+
+    def fetch_from_datapackage(self, **kwargs):
+        if not self._skip_resource(**kwargs):
+            # IMPORTANT!
+            # after this point - kwargs are ignored as we are fetching from previously prepared csv data
             if self.csv_path and os.path.exists(self.csv_path):
                 with open(self.csv_path, 'rb') as csv_file:
                     csv_reader = csv.reader(csv_file)
@@ -160,9 +177,6 @@ class CsvResource(BaseTabularResource):
                             for field in self.descriptor["schema"]["fields"]:
                                 parsed_row.append((field["name"], self._get_field_original_value(csv_row[field["name"]], field)))
                             yield OrderedDict(parsed_row)
-            else:
-                for row in self._data_generator(**kwargs):
-                    yield row
 
 
 class FilesResource(BaseResource):
@@ -185,30 +199,48 @@ class FilesResource(BaseResource):
 
     def make(self, **kwargs):
         if not self._skip_resource(**kwargs):
-            for file_path in self._data_generator(**kwargs):
+            for file_path in self.fetch(**kwargs):
                 self._append(file_path)
             return True
 
+    def fetch(self, **kwargs):
+        if not self._skip_resource(**kwargs):
+            for file_path in self._data_generator(**kwargs):
+                yield file_path
+
+    def fetch_from_datapackage(self, **kwargs):
+        if not self._skip_resource(**kwargs):
+            # IMPORTANT!
+            # after this point - kwargs are ignored as we are fetching from previously prepared csv data
+            return (file_path for file_path in self._descriptor["path"])
+
 
 class CsvFilesResource(CsvResource, FilesResource):
+    """
+    resource is same as CsvResource but with support for files with file paths in a csv column
+     __init__ gets a file_fields which contains a list of field names that contain file paths
+     you are responsible to write the files to those paths and add the path (relative to the base_path) to the csv row
+    """
 
-    def __init__(self, name, parent_datapackage_path, json_table_schema):
+    def __init__(self, name, parent_datapackage_path, json_table_schema, file_fields):
         CsvResource.__init__(self, name, parent_datapackage_path, json_table_schema)
+        # the descriptor path for csv is a single path to the csv file
+        # we change it here so that the csv file will be the first path in a list of paths
         self.descriptor["path"] = [self.descriptor["path"]]
+        # name of the csv columns that contain paths to a file
+        # used to populate the descriptor path with all the files
+        self._file_fields = file_fields
 
-    def _append(self, **kwargs):
-        raise Exception("please use _append_file or _append_csv instead")
-
-    def _append_file(self, file_path, **make_kwargs):
-        FilesResource._append(self, file_path, **make_kwargs)
-
-    def _append_csv(self, row, **make_kwargs):
+    def _append(self, row, **make_kwargs):
+        """
+        same as the csv resource append
+        the row you append should contain the file fields (as specified in __init__ file_fields parameter
+        the paths from the file fields will be added to the descriptor paths
+        :param row: OrderedDict of the csv row to append (must match the json_table_schema)
+        :param make_kwargs: the global datapackage make_kwargs
+        """
+        [FilesResource._append(self, row[field]) for field in self._file_fields]
         CsvResource._append(self, row, **make_kwargs)
-
-    def make(self, **kwargs):
-        if not self._skip_resource(**kwargs):
-            return (FilesResource.make(self, **kwargs)
-                    and CsvResource.make(self, **kwargs))
 
 
 class BaseDatapackage(DataPackage):
