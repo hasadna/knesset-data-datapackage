@@ -31,6 +31,24 @@ send_slack_notification() {
     fi
 }
 
+notify_datapackage_url() {
+    if [ "${DATAPACKAGE_SSH_NOTIFY_KEY}" != "" ]; then
+        echo "notifying open knesset via ssh to download and process the datapackage"
+        echo -e "${DATAPACKAGE_SSH_NOTIFY_KEY}" > sshnotify.key
+        chmod 400 sshnotify.key
+        if ssh -o StrictHostKeyChecking=no -i sshnotify.key "${DATAPACKAGE_SSH_NOTIFY_HOST}" "${1}"; then
+            echo "OK"
+            return 0
+        else
+            echo "error running ssh notification to open knesset"
+            return 1
+        fi
+    else
+        echo "skipping ssh notification to open knesset because missing ssh notify key"
+        return 2
+    fi
+}
+
 upload_datapackage() {
     local src="${1}"
     local dst="${2}"
@@ -117,6 +135,9 @@ if run_tests; then
         DATAPACKAGE_FILENAME="datapackage_last_${DATAPACKAGE_LAST_DAYS}_days_`date "+%Y-%m-%d"`.zip"
         if upload_datapackage "data/datapackage.zip" "${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"; then
             DATAPACKAGE_URL="https://s3.amazonaws.com/${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"
+            if ! notify_datapackage_url "${DATAPACKAGE_URL}"; then
+                echo "notification to open knesset failed, but we will continue anyway because this feature is experimental"
+            fi
         elif [ $? == 1 ]; then
             exit_error
         fi

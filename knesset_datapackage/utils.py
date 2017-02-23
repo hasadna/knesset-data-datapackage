@@ -14,7 +14,7 @@ def setup_logging(debug=False):
 
 def setup_datapath(path=None, delete=False):
     if not path:
-        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+        path = os.path.abspath(os.path.join(os.getcwd(), "data"))
     if os.path.exists(path) and delete:
         rmtree(path)
     if not os.path.exists(path):

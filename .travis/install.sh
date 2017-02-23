@@ -11,7 +11,9 @@ pip install .
 
 if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ] && [ "${DATAPACKAGE_SSH_PROXY_HOST}" != "" ]; then
     echo "creating ssh socks tunnel"
-    echo -e "${DATAPACKAGE_SSH_PROXY_KEY}" > sshproxy.key
-    chmod 400 sshproxy.key
+    if [ ! -f sshproxy.key ]; then
+        echo -e "${DATAPACKAGE_SSH_PROXY_KEY}" > sshproxy.key
+        chmod 400 sshproxy.key
+    fi
     ssh -o StrictHostKeyChecking=no -D 8123 -C -f -N -i sshproxy.key "${DATAPACKAGE_SSH_PROXY_HOST}"
 fi

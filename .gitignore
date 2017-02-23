@@ -1,5 +1,6 @@
 /data
 /sshproxy.key
+/sshnotify.key
 *.py[cod]
 
 # C extensions
