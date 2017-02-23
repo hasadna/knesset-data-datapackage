@@ -109,8 +109,12 @@ exit_success() {
 ### main ###
 
 if run_tests; then
+    if [ "`date '+%u'`" == "5" ]; then
+        # every Friday - make a datapackage for last 120 days (instead of default which should be shorter)
+        export DATAPACKAGE_LAST_DAYS=120
+    fi
     if make_datapackage; then
-        DATAPACKAGE_FILENAME="datapackage_last_${DATAPACKAGE_LAST_DAYS}_days_`date "+%Y-%m-%d_%H-%M"`.zip"
+        DATAPACKAGE_FILENAME="datapackage_last_${DATAPACKAGE_LAST_DAYS}_days_`date "+%Y-%m-%d"`.zip"
         if upload_datapackage "data/datapackage.zip" "${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"; then
             DATAPACKAGE_URL="https://s3.amazonaws.com/${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"
         elif [ $? == 1 ]; then
