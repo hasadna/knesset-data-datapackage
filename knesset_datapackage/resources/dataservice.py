@@ -27,10 +27,19 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
             schema["fields"].append({"type": "string", "name": "scraper_errors"})
         return schema
 
+    def _collection_get(self, object_id, proxies):
+        return self.collection.get(object_id, proxies=proxies)
+
+    def _collection_get_page(self, order_by, proxies):
+        return self.collection.get_page(order_by=order_by, proxies=proxies)
+
+    def _collection_get_all(self, proxies):
+        return self.collection.get_all(proxies=proxies)
+
     def _get_objects_by_ids(self, ids, proxies=None, **make_kwargs):
         self.logger.info('fetching {} ids: {}'.format(self.object_name, ids))
         self.descriptor["description"] = "specific {} ids".format(self.object_name)
-        return (self.collection.get(object_id, proxies=proxies) for object_id in ids)
+        return (self._collection_get(object_id, proxies=proxies) for object_id in ids)
 
     def _get_objects_by_all(self, void, proxies=None, **make_kwargs):
         if self.get_latest_by_page_estimate:
@@ -41,13 +50,13 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
             self.descriptor["description"] = "up to {} {}s based on ordering of {}".format(target_num_results, self.object_name, order_field)
             num_results = 0
             while num_results < target_num_results:
-                for object in self.collection.get_page(order_by=(order_field, "desc"), proxies=proxies):
+                for object in self._collection_get_page(order_by=(order_field, "desc"), proxies=proxies):
                     num_results += 1
                     yield object
         else:
             self.logger.info('fetching all {}s'.format(self.object_name))
             self.descriptor["description"] = "all {}s".format(self.object_name)
-            for object in self.collection.get_all(proxies=proxies):
+            for object in self._collection_get_all(proxies=proxies):
                 yield object
 
     def _get_objects(self, proxies=None, **make_kwargs):

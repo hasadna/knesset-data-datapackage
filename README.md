@@ -30,7 +30,6 @@ Creating a datapackage using the CLI tool:
   * (my-datapackage) $ git clone https://github.com/hasadna/knesset-data-datapackage.git
   * (my-datapackage) $ cd knesset-data-datapackage
   * (my-datapackage) knesset-data-datapackage$ pip install -e .
-  * (my-datapackage) knesset-data-datapackage$ pip install git+https://github.com/turnkeylinux/octohub.git
 * Run the CLI tool
   * (my-datapackage) knesset-data-datapackage$ make_knesset_datapackage --help
   * by default the CLI tool creates the output and zip files inside data directory (e.g. knesset-data-datapackage/data)

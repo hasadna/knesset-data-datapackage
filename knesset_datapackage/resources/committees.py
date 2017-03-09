@@ -46,6 +46,7 @@ class CommitteeMeetingsResource(CsvResource):
     """
     Committee meetings csv resource - generates the csv with committee meetings for the last DAYS days (default 5 days)
     if __init__ gets a protocols resource it will pass every meeting over to that resource to save the corresponding protocol
+    this resource doesn't support making directly, you have to call append_for_committee with a specific committee_id
     """
 
     def __init__(self, name=None, parent_datapackage_path=None, protocols_resource=None):
@@ -55,13 +56,16 @@ class CommitteeMeetingsResource(CsvResource):
                                             "name": "scraper_errors"})
         super(CommitteeMeetingsResource, self).__init__(name, parent_datapackage_path, json_table_schema)
 
+    def _committee_meeting_get(self, committee_id, fromdate, proxies):
+        return CommitteeMeeting.get(committee_id, fromdate, proxies=proxies)
+
     def append_for_committee(self, committee_id, **make_kwargs):
         if not self._skip_resource(**make_kwargs):
             proxies = make_kwargs.get('proxies', None)
             fromdate = datetime.datetime.now().date() - datetime.timedelta(days=make_kwargs.get('days', 5))
             self.logger.info('appending committee meetings since {} for committee {}'.format(fromdate, committee_id))
             meeting = empty = object()
-            for meeting in CommitteeMeeting.get(committee_id, fromdate, proxies=proxies):
+            for meeting in self._committee_meeting_get(committee_id, fromdate, proxies=proxies):
                 if not make_kwargs.get('committee_meeting_ids') or int(meeting.id) in make_kwargs.get('committee_meeting_ids'):
                     scraper_errors = []
                     if self._protocols_resource:

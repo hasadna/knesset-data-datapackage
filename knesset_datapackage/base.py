@@ -61,7 +61,7 @@ class BaseResource(Resource):
             return True
         else:
             if log:
-                self.logger.info("making resource '{}'".format(full_name))
+                self.logger.info("processing datapackage resource '{}'".format(full_name))
             return False
 
     @property
@@ -69,6 +69,12 @@ class BaseResource(Resource):
         if not hasattr(self, '_logger'):
             self._logger = logging.getLogger(self.__module__.replace("knesset_data.", ""))
         return self._logger
+
+    def get_path(self, relpath=None):
+        if relpath:
+            return os.path.join(self._base_path, relpath)
+        else:
+            return self._base_path
 
 
 class BaseTabularResource(BaseResource, TabularResource):
@@ -243,9 +249,55 @@ class CsvFilesResource(CsvResource, FilesResource):
         CsvResource._append(self, row, **make_kwargs)
 
 
+class DatapackageResourceLink(object):
+
+    def __init__(self, resource_name):
+        self.resource_name = resource_name
+
+
 class BaseDatapackage(DataPackage):
 
+    NAME = None
+    RESOURCES = {
+        # "resource_name": (resource_class, resource_init_kwargs),
+    }
+
+    def __init__(self, base_path, with_dependencies=True):
+        self._with_dependencies = with_dependencies
+        super(BaseDatapackage, self).__init__(descriptor={"name": self.NAME}, default_base_path=base_path)
+
+    def _get_resources(self, resources, base_path, num_iterations=0):
+        need_to_rerun = False
+        for resource_name, resource_load_args in self.RESOURCES.items():
+            resource_class, resource_kwargs = resource_load_args
+            if resource_name not in [resource.descriptor["name"] for resource in resources]:
+                resource_has_unloaded_dependency = False
+                for kwarg, val in resource_kwargs.items():
+                    if isinstance(val, DatapackageResourceLink):
+                        if self._with_dependencies:
+                            loaded_resources = {resource.descriptor["name"]: resource for resource in resources}
+                            if val.resource_name in loaded_resources:
+                                resource_kwargs[kwarg] = loaded_resources[val.resource_name]
+                            else:
+                                resource_has_unloaded_dependency = True
+                        else:
+                            del resource_kwargs[kwarg]
+                if resource_has_unloaded_dependency:
+                    need_to_rerun = True
+                else:
+                    resource = resource_class(resource_name, base_path, **resource_kwargs)
+                    resources.append(resource)
+        if need_to_rerun:
+            num_iterations += 1
+            if num_iterations > len(self.RESOURCES)*2:
+                raise Exception("problem loading resources due to resource dependencies")
+            else:
+                return self._get_resources(resources, base_path, num_iterations)
+        else:
+            return resources
+
     def _load_resources(self, descriptor, base_path):
+        descriptor["resources"] = self._get_resources([], base_path)
         resources = []
         for i, resource in enumerate(descriptor["resources"]):
             if isinstance(resource, BaseResource):

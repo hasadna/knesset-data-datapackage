@@ -30,14 +30,10 @@ class DummyResource(BaseResource):
 
 class DummyDatapackage(BaseDatapackage):
 
-    def __init__(self, base_path):
-        super(DummyDatapackage, self).__init__(descriptor={
-            "name": "dummy-datapackage"
-        }, default_base_path=base_path)
-
-    def _load_resources(self, descriptor, base_path):
-        descriptor["resources"] = [DummyResource("dummy-resource", base_path)]
-        return super(DummyDatapackage, self)._load_resources(descriptor, base_path)
+    NAME = "dummy-datapackage"
+    RESOURCES = {
+        "dummy-resource": (DummyResource, {}),
+    }
 
 
 class DummyCsvResource(CsvResource):
