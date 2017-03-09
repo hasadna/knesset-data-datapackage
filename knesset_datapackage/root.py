@@ -1,7 +1,6 @@
 from knesset_datapackage.base import BaseDatapackage, DatapackageResourceLink
 from knesset_datapackage.resources.committees import CommitteesResource, CommitteeMeetingsResource, CommitteeMeetingProtocolsResource
 from knesset_datapackage.resources.members import MembersResource
-from knesset_datapackage.resources.laws import PrivateLawResource
 
 
 class RootDatapackage(BaseDatapackage):
