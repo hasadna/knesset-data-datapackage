@@ -79,7 +79,7 @@ make_datapackage() {
         mkdir -p data
         if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ]; then
             echo "making datapackage for last ${DATAPACKAGE_LAST_DAYS} days"
-            if make_knesset_datapackage --days "${DATAPACKAGE_LAST_DAYS}" --debug --zip --http-proxy "socks5://localhost:8123"; then
+            if make_knesset_datapackage --days "${DATAPACKAGE_LAST_DAYS}" --debug --zip --http-proxy "socks5://localhost:8123 --skip-exceptions"; then
                 echo "OK"
                 return 0
             else
