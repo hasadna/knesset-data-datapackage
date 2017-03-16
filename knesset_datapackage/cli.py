@@ -28,6 +28,7 @@ def make_datapackage():
     parser.add_argument('--skip-exceptions', action="store_true", help="try to skip over exceptions as much as possible. "
                                                                        "errors will be written in datapackage descriptor "
                                                                        "or inside the relevant data/csv file")
+    parser.add_argument('--dry-run', action="store_true", help="skip the actual fetching and saving of data")
 
     args = parser.parse_args()
 
@@ -68,7 +69,8 @@ def make_datapackage():
                      proxies=proxies,
                      member_ids=args.member_id,
                      committee_meeting_ids=args.committee_meeting_id,
-                     skip_exceptions=args.skip_exceptions)
+                     skip_exceptions=args.skip_exceptions,
+                     dry_run=args.dry_run)
 
     if args.zip:
         logger.info('creating datapackage.zip')

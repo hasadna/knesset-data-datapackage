@@ -40,14 +40,18 @@ class BaseResource(Resource):
         # be sure to check _skip_resource - which logs some info messages and checks if resource should be skipped
         raise NotImplementedError()
 
-    def _skip_resource(self, include=None, exclude=None, **kwargs):
+    def _skip_resource(self, include=None, exclude=None, dry_run=False, **kwargs):
         if not hasattr(self, '_logged_skip_message'):
             self._logged_skip_message = True
             log = True
         else:
             log = False
         full_name = self.descriptor["name"]
-        if include and not [True for str in include if len(str) > 0 and full_name.startswith(str)]:
+        if dry_run:
+            if log:
+                self.logger.info("skipping resource '{}' due to dry_run flag".format(full_name))
+            return True
+        elif include and not [True for str in include if len(str) > 0 and full_name.startswith(str)]:
             if log:
                 self.logger.debug("skipping resource '{}' due to include filter".format(full_name))
             self._descriptor.update({k: None for k in self._descriptor if k != "name"})
@@ -269,6 +273,13 @@ class BaseDatapackage(DataPackage):
         self._with_dependencies = with_dependencies
         super(BaseDatapackage, self).__init__(descriptor={"name": self.NAME}, default_base_path=base_path)
 
+    def _order_resources(self, resources):
+        resources_dict = {resource.descriptor["name"]: resource for resource in resources}
+        resources = []
+        for resource_name, resource_kwargs in self.RESOURCES.items():
+            resources.append(resources_dict[resource_name])
+        return resources
+
     def _get_resources(self, resources, base_path, num_iterations=0):
         need_to_rerun = False
         for resource_name, resource_load_args in self.RESOURCES.items():
@@ -297,7 +308,7 @@ class BaseDatapackage(DataPackage):
             else:
                 return self._get_resources(resources, base_path, num_iterations)
         else:
-            return resources
+            return self._order_resources(resources)
 
     def _load_resources(self, descriptor, base_path):
         descriptor["resources"] = self._get_resources([], base_path)
