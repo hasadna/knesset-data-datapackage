@@ -6,3 +6,4 @@ class MembersResource(BaseKnessetDataServiceCollectionResource):
     collection = Member
     object_name = "member"
     track_generated_objects = True
+    enable_scraper_errors = True

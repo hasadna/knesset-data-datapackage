@@ -1,6 +1,8 @@
 from knesset_datapackage.base import BaseDatapackage, BaseResource, CsvResource, FilesResource, CsvFilesResource
 from datetime import datetime
 import os
+from ..resources.members import MembersResource
+from knesset_data.dataservice.mocks import MockMember
 
 
 class DummyResource(BaseResource):
@@ -38,14 +40,21 @@ class DummyDatapackage(BaseDatapackage):
 
 class DummyCsvResource(CsvResource):
 
-    def __init__(self, name=None, parent_datapackage_path=None):
+    def __init__(self, name=None, parent_datapackage_path=None, raise_exception=False):
         super(DummyCsvResource, self).__init__(name, parent_datapackage_path, {"fields": [{"name": "date", "type": "datetime"},
                                                                                           {"name": "integer", "type": "integer"},
                                                                                           {"name": "string", "type": "string"}]})
+        self.raise_exception = raise_exception
 
     def _data_generator(self, **make_kwargs):
         yield {"date": datetime(2015, 5, 2), "integer": 5, "string": "hello world!"}
-        yield {"date": datetime(2013, 6, 9), "integer": 3, "string": "goodbye"}
+        if self.raise_exception:
+            if make_kwargs.get("skip_exceptions"):
+                yield "ERROR!"
+            else:
+                raise Exception("raised an exception!")
+        else:
+            yield {"date": datetime(2013, 6, 9), "integer": 3, "string": "goodbye"}
 
 
 class DummyFilesResource(FilesResource):
@@ -77,3 +86,7 @@ class DummyCsvFilesResource(CsvFilesResource):
                 f.write(content)
         yield {"name": "hello world", "text file": "hello_world.txt", "doc file": "hello_world.doc"}
         yield {"name": "goodbye world", "text file": "goodbye_world.txt", "doc file": "goodbye_world.doc"}
+
+
+class MockMembersResource(MembersResource):
+    collection = MockMember

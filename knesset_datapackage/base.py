@@ -148,6 +148,9 @@ class CsvResource(BaseTabularResource):
                     csv_row.append(value)
                 csv_writer.writerow(csv_row)
 
+    def _get_empty_row(self):
+        return {field["name"]: self._get_field_csv_value("", field) for field in self.descriptor["schema"]["fields"]}
+
     @property
     def csv_path(self):
         if self._base_path:

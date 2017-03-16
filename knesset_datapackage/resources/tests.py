@@ -115,7 +115,7 @@ class MockCommitteesResource(CommitteesResource):
     def _collection_get_page(self, order_by, proxies):
         pass
 
-    def _collection_get_all(self, proxies):
+    def _collection_get_all(self, proxies, skip_exceptions):
         return [
             Committee({"data": dict(COMMITTEE_SOURCE_DATA, committee_id=1)}),
             Committee({"data": dict(COMMITTEE_SOURCE_DATA, committee_id=2)}),
