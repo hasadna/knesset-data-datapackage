@@ -72,9 +72,12 @@ class CommitteeMeetingsResource(CsvResource):
                         try:
                             self._protocols_resource.append_for_meeting(committee_id, meeting.id, meeting.datetime, meeting.protocol, **make_kwargs)
                         except Exception, e:
-                            scraper_errors.append("exception generating protocols resource: {}".format(e))
-                            self.logger.warning("exception generating protocols resource, will continue to next meeting")
-                            self.logger.exception(e)
+                            if make_kwargs.get("skip_exceptions"):
+                                scraper_errors.append("exception generating protocols resource: {}".format(e))
+                                self.logger.warning("exception generating protocols resource for committee {}, meeting {}: {}".format(committee_id, meeting.id, e))
+                                self.logger.debug(e, exc_info=1)
+                            else:
+                                raise e
                     self.logger.debug('append committee meeting {}'.format(meeting.id))
                     row = meeting.all_field_values()
                     row["scraper_errors"] = "\n".join(scraper_errors)
@@ -87,15 +90,18 @@ class CommitteeMeetingsResource(CsvResource):
 
 class CommitteeMeetingProtocolsResource(CsvFilesResource):
 
-    def __init__(self, name, parent_datapackage_path, members_resource=None):
-        self._members_resoure = members_resource
-        super(CommitteeMeetingProtocolsResource, self).__init__(name, parent_datapackage_path,
-                                                                {"fields": [{"type": "integer", "name": "committee_id"},
-                                                                            {"type": "integer", "name": "meeting_id"},
-                                                                            {"type": "string", "name": "text"},
-                                                                            {"type": "string", "name": "parts"},
-                                                                            {"type": "string", "name": "original"},
-                                                                            {"type": "string", "name": "attending_members"}]},
+    def __init__(self, name, parent_datapackage_path):
+        json_table_schema = {"fields": [{"type": "integer", "name": "committee_id"},
+                                        {"type": "integer", "name": "meeting_id"},
+                                        {"type": "string", "name": "text",
+                                         "description": "text file containing only the pure text of the protocol (empty in case of error)"},
+                                        {"type": "string", "name": "parts",
+                                         "description": "csv file with protocol split to speakers (empty in case of error)"},
+                                        {"type": "string", "name": "original",
+                                         "description": "original file as retrieved from the Knesset (empty in case of error)"},
+                                        {"type": "string", "name": "scraper_errors",
+                                         "description": "comma-separated list of errors received while scraping"}]}
+        super(CommitteeMeetingProtocolsResource, self).__init__(name, parent_datapackage_path, json_table_schema,
                                                                 file_fields=["text", "parts", "original"])
 
     def append_for_meeting(self, committee_id, meeting_id, meeting_datetime, meeting_protocol, **make_kwargs):
@@ -122,26 +128,36 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                 os.mkdir(abs_meeting_path)
             # parse the protocol and save
             with meeting_protocol as protocol:
+                scraper_errors = []
                 # the csv row
                 row = {"committee_id": committee_id,
                        "meeting_id": meeting_id,
                        "text": rel_text_file_path.lstrip("/"),
                        "parts": rel_parts_file_path.lstrip("/"),
-                       "original": rel_original_file_path.lstrip("/"),
-                       "attending_members": ""}
+                       "original": rel_original_file_path.lstrip("/")}
                 # original
                 try:
                     shutil.copyfile(protocol.file_name, abs_original_file_path)
                 except Exception, e:
-                    row["original"] = "ERROR: {}".format(e)
-                    self.logger.exception(e)
+                    if make_kwargs.get("skip_exceptions"):
+                        row["original"] = ""
+                        self.logger.warn( "error getting original file for committee {} meeting {}: {}".format(committee_id, meeting_id, e))
+                        self.logger.debug(e, exc_info=1)
+                        scraper_errors.append("error getting original file: {}".format(e))
+                    else:
+                        raise e
                 # text
                 with open(abs_text_file_path, 'w') as f:
                     try:
                         f.write(protocol.text.encode('utf8'))
                     except Exception, e:
-                        row["text"] = "ERROR: {}".format(e)
-                        self.logger.exception(e)
+                        if make_kwargs.get("skip_exceptions"):
+                            row["text"] = ""
+                            self.logger.warn("error getting text file for committee {} meeting {}: {}".format(committee_id, meeting_id, e))
+                            self.logger.debug(e, exc_info=1)
+                            scraper_errors.append("error getting text file: {}".format(e))
+                        else:
+                            raise e
                 # parts
                 with open(abs_parts_file_path, 'wb') as f:
                     csv_writer = csv.writer(f)
@@ -150,14 +166,12 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                         for part in protocol.parts:
                             csv_writer.writerow([part.header.encode('utf8'), part.body.encode('utf8')])
                     except Exception, e:
-                        row["parts"] = "ERROR: {}".format(e)
-                        self.logger.exception(e)
-                # attending members
-                if self._members_resoure:
-                    try:
-                        row["attending_members"] = u", ".join(protocol.find_attending_members([u"{} {}".format(member.first_name, member.name) for member
-                                                                                               in self._members_resoure.get_generated_objects()]))
-                    except Exception, e:
-                        row["attending_members"] = "ERROR: {}".format(e)
-                        self.logger.exception(e)
+                        if make_kwargs.get("skip_exceptions"):
+                            row["parts"] = ""
+                            self.logger.warn("error getting parts file for committee {} meeting {}: {}".format(committee_id, meeting_id, e))
+                            self.logger.debug(e, exc_info=1)
+                            scraper_errors.append("error getting parts file: {}".format(e))
+                        else:
+                            raise e
+                row["scraper_errors"] = ", ".join(scraper_errors)
                 self._append(row, **make_kwargs)

@@ -46,7 +46,7 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
         returns the json table schema for this collection (from thee knesset_data.dataservice collection class)
         """
         schema = self.collection.get_json_table_schema()
-        if self.enable_pre_append:
+        if self._scraper_errors_enabled():
             schema["fields"].append({"type": "string", "name": "scraper_errors"})
         return schema
 
@@ -118,6 +118,9 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
         """
         pass
 
+    def _scraper_errors_enabled(self):
+        return self.enable_scraper_errors or (self.enable_scraper_errors is None and self.enable_pre_append)
+
     def _data_generator(self, **make_kwargs):
         """
         main method called by CsvResource to get the data
@@ -127,14 +130,13 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
         # but - there are cases where exceptions will still be raised,
         # for example, if getting an error when fetching page of results we usually raise an exception and don't continue
         for object in self._get_objects(**make_kwargs):
-            enable_scraper_errors = self.enable_scraper_errors or (self.enable_scraper_errors is None and self.enable_pre_append)
-            scraper_errors = [] if enable_scraper_errors else None
+            scraper_errors = [] if self._scraper_errors_enabled() else None
             if make_kwargs.get("skip_exceptions") and isinstance(object, Exception):
                 exception, object = object, None
             else:
                 exception = None
             if exception:
-                if enable_scraper_errors:
+                if self._scraper_errors_enabled():
                     scraper_errors.append("exception generating {}: {}".format(self.descriptor["name"], exception.message))
                     row = self._get_empty_row()
                 else:
@@ -148,7 +150,7 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
                         self._pre_append(object, **make_kwargs)
                     except Exception, e:
                         self.logger.exception(e)
-                        if enable_scraper_errors:
+                        if make_kwargs.get("skip_exceptions") and self._scraper_errors_enabled():
                             self.logger.warning("exception generating {}, will continue to next object".format(self.descriptor["name"]))
                             scraper_errors.append("exception generating {}: {}".format(self.descriptor["name"], e))
                         else:
@@ -158,7 +160,7 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
                 if self.track_generated_objects:
                     self._generated_objects.append(object)
                 row = object.all_field_values()
-            if enable_scraper_errors:
+            if self._scraper_errors_enabled():
                 row["scraper_errors"] = "\n".join(scraper_errors)
             yield row
 

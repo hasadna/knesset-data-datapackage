@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 from ..resources.members import MembersResource
 from knesset_data.dataservice.mocks import MockMember
+from collections import OrderedDict
 
 
 class DummyResource(BaseResource):
@@ -30,12 +31,24 @@ class DummyResource(BaseResource):
                     yield line[:-1]
 
 
+class DummyResourceWithException(DummyResource):
+
+    def fetch(self, **kwargs):
+        for item in super(DummyResourceWithException, self).fetch(**kwargs):
+            yield item
+        raise Exception("dummy resource exception")
+
+
 class DummyDatapackage(BaseDatapackage):
 
     NAME = "dummy-datapackage"
-    RESOURCES = {
-        "dummy-resource": (DummyResource, {}),
-    }
+    RESOURCES = OrderedDict([("dummy-resource-with-exception", (DummyResourceWithException, {})),
+                             ("dummy-resource", (DummyResource, {})),])
+
+    def __init__(self, base_path, with_dependencies=True, without_exceptions=False):
+        if without_exceptions:
+            del self.RESOURCES["dummy-resource-with-exception"]
+        super(DummyDatapackage, self).__init__(base_path, with_dependencies=with_dependencies)
 
 
 class DummyCsvResource(CsvResource):

@@ -20,9 +20,9 @@ class BaseDatapackageTestCase(TestCase):
         self.data_roots.append(data_root)
         return data_root
 
-    def given_dummy_datapackage_was_made(self):
-        datapackage = DummyDatapackage(self.datapackage_root)
-        datapackage.make()
+    def given_dummy_datapackage_was_made(self, without_exceptions=False, **kwargs):
+        datapackage = DummyDatapackage(self.datapackage_root, without_exceptions=without_exceptions)
+        datapackage.make(**kwargs)
         return datapackage
 
     def assert_dummy_resource_file_contains_expected_content(self, f):

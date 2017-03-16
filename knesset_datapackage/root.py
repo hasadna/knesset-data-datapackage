@@ -11,5 +11,5 @@ class RootDatapackage(BaseDatapackage):
 
         "committees": (CommitteesResource, {"meetings_resource": DatapackageResourceLink("committee-meetings")}),
         "committee-meetings": (CommitteeMeetingsResource, {"protocols_resource": DatapackageResourceLink("committee-meetings-protocols")}),
-        "committee-meetings-protocols": (CommitteeMeetingProtocolsResource, {"members_resource": DatapackageResourceLink("members")}),
+        "committee-meetings-protocols": (CommitteeMeetingProtocolsResource, {}),
     }

@@ -25,6 +25,9 @@ def make_datapackage():
     parser.add_argument('--main-committees', action="store_true", help="committees resource: fetch only the active main committees")
     parser.add_argument('--member-id', nargs="*", type=int, help="members resource: fetch only the given member id/s")
     parser.add_argument('--committee-meeting-id', nargs="*", type=int, help="only make data for given committee meeting ids")
+    parser.add_argument('--skip-exceptions', action="store_true", help="try to skip over exceptions as much as possible. "
+                                                                       "errors will be written in datapackage descriptor "
+                                                                       "or inside the relevant data/csv file")
 
     args = parser.parse_args()
 
@@ -64,7 +67,8 @@ def make_datapackage():
                      debug=args.debug,
                      proxies=proxies,
                      member_ids=args.member_id,
-                     committee_meeting_ids=args.committee_meeting_id)
+                     committee_meeting_ids=args.committee_meeting_id,
+                     skip_exceptions=args.skip_exceptions)
 
     if args.zip:
         logger.info('creating datapackage.zip')

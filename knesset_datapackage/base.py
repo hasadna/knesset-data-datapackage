@@ -331,7 +331,15 @@ class BaseDatapackage(DataPackage):
         self.logger.info('making resources')
         for resource in self.resources:
             if isinstance(resource, BaseResource):
-                resource.make(**kwargs)
+                try:
+                    resource.make(**kwargs)
+                except Exception, e:
+                    if kwargs.get("skip_exceptions"):
+                        self.logger.error("got an exception in {} resource: {}".format(resource.descriptor["name"], e.message))
+                        self.logger.exception(e)
+                        resource.descriptor["error"] = e.message
+                    else:
+                        raise e
         self.logger.info('writing datapackage.json')
         with open(os.path.join(self.base_path, "datapackage.json"), 'w') as f:
             f.write(json.dumps(self.descriptor, indent=True)+"\n")

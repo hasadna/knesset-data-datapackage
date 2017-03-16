@@ -22,7 +22,7 @@ class ZipTestCase(BaseDatapackageTestCase):
 
     def test(self):
         # saving to zip
-        datapackage = self.given_dummy_datapackage_was_made()
+        datapackage = self.given_dummy_datapackage_was_made(without_exceptions=True)
         datapackage_zip_file = self.given_datapackage_is_saved_to_zip(datapackage)
         self.dummy_datapackage_zip_should_contain_json_and_dummy_resource(datapackage_zip_file)
         # loading from the zip

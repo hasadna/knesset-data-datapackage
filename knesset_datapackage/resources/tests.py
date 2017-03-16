@@ -193,18 +193,17 @@ class ResourcesTestCase(BaseDatapackageTestCase):
                                   type("MockProtocolPart", (object,), {"header": "mock header 2", "body": "mock body 2"})],
                         "file_name": ""})
         # appending using the fake protocol
-        resource.append_for_meeting(committee_id, meeting_id, meeting_datetime, meeting_protocol())
+        resource.append_for_meeting(committee_id, meeting_id, meeting_datetime, meeting_protocol(), skip_exceptions=True)
         # checking the created files
         with open(os.path.join(data_root, "committee-meeting-protocols.csv")) as f:
             self.assertEqual(list(csv.reader(f.readlines())),
                              [['committee_id', 'meeting_id', 'text',
                                'parts',
                                'original',
-                               'attending_members'],
+                               'scraper_errors'],
                               ['6',            '7',          'committee_6/7_1953-05-04_00-00-00/protocol.txt',
-                               'committee_6/7_1953-05-04_00-00-00/protocol.csv',
-                               "ERROR: [Errno 2] No such file or directory: ''",
-                               '']])
+                               'committee_6/7_1953-05-04_00-00-00/protocol.csv', '',
+                               "error getting original file: [Errno 2] No such file or directory: ''"]])
         with open(os.path.join(data_root, "committee-meeting-protocols", "committee_6/7_1953-05-04_00-00-00/protocol.txt")) as f:
             self.assertEqual(f.readlines(), ["Hello World!"])
         with open(os.path.join(data_root, "committee-meeting-protocols", "committee_6/7_1953-05-04_00-00-00/protocol.csv")) as f:
