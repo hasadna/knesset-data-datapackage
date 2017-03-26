@@ -1,6 +1,7 @@
 from knesset_datapackage.base import BaseDatapackage, DatapackageResourceLink
 from knesset_datapackage.resources.committees import CommitteesResource, CommitteeMeetingsResource, CommitteeMeetingProtocolsResource
 from knesset_datapackage.resources.members import MembersResource
+from knesset_datapackage.resources.plenum import PlenumMeetingsResource
 from collections import OrderedDict
 
 
@@ -13,4 +14,6 @@ class RootDatapackage(BaseDatapackage):
         ("committee-meetings-protocols", (CommitteeMeetingProtocolsResource, {})),
 
         ("members", (MembersResource, {})),
+
+        ("plenum-meetings", (PlenumMeetingsResource, {})),
     ])
