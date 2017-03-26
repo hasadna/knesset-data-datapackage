@@ -29,6 +29,8 @@ def make_datapackage():
                                                                        "errors will be written in datapackage descriptor "
                                                                        "or inside the relevant data/csv file")
     parser.add_argument('--dry-run', action="store_true", help="skip the actual fetching and saving of data")
+    parser.add_argument('--resource', nargs="*", type=str, help="build only the givdn resource names")
+    parser.add_argument('--mock', action="store_true", help="use mock data - can be useful for testing")
 
     args = parser.parse_args()
 
@@ -70,7 +72,9 @@ def make_datapackage():
                      member_ids=args.member_id,
                      committee_meeting_ids=args.committee_meeting_id,
                      skip_exceptions=args.skip_exceptions,
-                     dry_run=args.dry_run)
+                     dry_run=args.dry_run,
+                     resources=args.resource,
+                     mock=args.mock)
 
     if args.zip:
         logger.info('creating datapackage.zip')

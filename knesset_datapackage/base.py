@@ -13,7 +13,7 @@ class BaseResource(Resource):
 
     def __init__(self, name=None, parent_datapackage_path=None, descriptor=None):
         if not descriptor:
-            descriptor = {}
+            descriptor = OrderedDict()
         descriptor["name"] = name
         if name and parent_datapackage_path:
             default_base_path = os.path.join(parent_datapackage_path, name)
@@ -40,7 +40,7 @@ class BaseResource(Resource):
         # be sure to check _skip_resource - which logs some info messages and checks if resource should be skipped
         raise NotImplementedError()
 
-    def _skip_resource(self, include=None, exclude=None, dry_run=False, **kwargs):
+    def _skip_resource(self, include=None, exclude=None, dry_run=False, resources=None, **kwargs):
         if not hasattr(self, '_logged_skip_message'):
             self._logged_skip_message = True
             log = True
@@ -62,6 +62,12 @@ class BaseResource(Resource):
                 self.logger.debug("skipping resource '{}' due to exclude filter".format(full_name))
             self._descriptor.update({k: None for k in self._descriptor if k != "name"})
             self._descriptor["description"] = "resource skipped due to exclude filter"
+            return True
+        elif resources and full_name not in resources:
+            if log:
+                self.logger.debug("skipping resource '{}' due to resources param".format(full_name))
+            self._descriptor.update({k: None for k in self._descriptor if k != "name"})
+            self._descriptor["description"] = "resource skipped due to resources param"
             return True
         else:
             if log:
@@ -95,28 +101,36 @@ class CsvResource(BaseTabularResource):
                                 "schema": json_table_schema})
 
     def _get_field_csv_value(self, val, schema):
-        if val is None:
-            return None
-        elif schema["type"] == "datetime":
-            return val.isoformat().encode('utf8')
-        elif schema["type"] == "integer":
-            return val
-        elif schema["type"] == "string":
-            if hasattr(val, 'encode'):
-                return val.encode('utf8')
+        try:
+            if val is None:
+                return None
+            elif schema["type"] == "datetime":
+                return val.isoformat().encode('utf8')
+            elif schema["type"] == "integer":
+                return val
+            elif schema["type"] == "string":
+                if hasattr(val, 'encode'):
+                    try:
+                        return val.encode('utf8')
+                    except UnicodeDecodeError:
+                        # TODO: investigate further, why this should happen and if this logic is correct
+                        return val
+                else:
+                    # TODO: check why this happens, I assume it's because of some special field
+                    return ""
             else:
-                # TODO: check why this happens, I assume it's because of some special field
+                # try different methods to encode the value
+                for f in (lambda val: val.encode('utf8'),
+                          lambda val: unicode(val).encode('utf8')):
+                    try:
+                        return f(val)
+                    except Exception:
+                        pass
+                self.logger.warn("failed to encode value for {}".format(schema["name"]))
                 return ""
-        else:
-            # try different methods to encode the value
-            for f in (lambda val: val.encode('utf8'),
-                      lambda val: unicode(val).encode('utf8')):
-                try:
-                    return f(val)
-                except Exception:
-                    pass
-            self.logger.warn("failed to encode value for {}".format(schema["name"]))
-            return ""
+        except Exception, e:
+            self.logger.error("failed to decode value '{}' for schema '{}'".format(val, schema))
+            raise
 
     def _get_field_original_value(self, csv_val, schema):
         val = csv_val.decode('utf8')
@@ -252,7 +266,7 @@ class CsvFilesResource(CsvResource, FilesResource):
         :param row: OrderedDict of the csv row to append (must match the json_table_schema)
         :param make_kwargs: the global datapackage make_kwargs
         """
-        [FilesResource._append(self, row[field]) for field in self._file_fields]
+        [FilesResource._append(self, row[field]) for field in self._file_fields if row[field] and row[field] != ""]
         CsvResource._append(self, row, **make_kwargs)
 
 
@@ -335,6 +349,52 @@ class BaseDatapackage(DataPackage):
         else:
             raise LookupError("found more then 1 resource with name {}".format(name))
 
+    def _dict_recursively_remove_nulls(self, old_dict):
+        new_dict = OrderedDict()
+        for k in old_dict:
+            if old_dict[k] is not None:
+                if isinstance(old_dict[k], (dict, OrderedDict)):
+                    new_dict[k] = self._dict_recursively_remove_nulls(old_dict[k])
+                elif isinstance(old_dict[k], list):
+                    new_dict[k] = []
+                    for e in old_dict[k]:
+                        if isinstance(e, (dict, OrderedDict)):
+                            new_dict[k].append(self._dict_recursively_remove_nulls(e))
+                        else:
+                            new_dict[k].append(e)
+                else:
+                    new_dict[k] = old_dict[k]
+        return new_dict
+
+    def get_json_descriptor(self):
+        old_descriptor = self.descriptor
+        new_descriptor = OrderedDict()
+        new_descriptor["name"] = old_descriptor.pop("name")
+        new_descriptor["description"] = old_descriptor.pop("description", None)
+        new_descriptor["resources"] = []
+        for old_resource in self.descriptor.pop("resources"):
+            new_resource = OrderedDict()
+            new_resource["name"] = old_resource.pop("name")
+            new_resource["description"] = old_resource.pop("description", None)
+            new_resource["path"] = old_resource.pop("path", None)
+            old_schema = old_resource.pop("schema", None)
+            if old_schema:
+                new_schema = OrderedDict()
+                new_fields = []
+                for old_field in old_schema.pop("fields"):
+                    new_field = OrderedDict()
+                    new_field["name"] = old_field.pop("name")
+                    new_field["type"] = old_field.pop("type")
+                    new_field["description"] = old_field.pop("description", None)
+                    new_fields.append(new_field)
+                new_schema["fields"] = new_fields
+                new_schema.update(old_schema)
+                new_resource["schema"] = new_schema
+            new_resource.update(old_resource)
+            new_descriptor["resources"].append(new_resource)
+        new_descriptor.update(old_descriptor)
+        return json.dumps(self._dict_recursively_remove_nulls(new_descriptor), indent=True)
+
     def make(self, **kwargs):
         self.logger.info('making datapackage: "{}", base path: "{}"'.format(self.descriptor["name"], self.base_path))
         if not os.path.exists(self.base_path):
@@ -350,10 +410,10 @@ class BaseDatapackage(DataPackage):
                         self.logger.exception(e)
                         resource.descriptor["error"] = e.message
                     else:
-                        raise e
+                        raise
         self.logger.info('writing datapackage.json')
         with open(os.path.join(self.base_path, "datapackage.json"), 'w') as f:
-            f.write(json.dumps(self.descriptor, indent=True)+"\n")
+            f.write(self.get_json_descriptor()+"\n")
         self.logger.info('done')
 
     @property
