@@ -45,59 +45,6 @@ COMMITTEE_EXPECTED_DATA = {'id': '-1',
                            'portal_link': u'can be used to link to the dedicated page in knesset website',
                            'scraper_errors': u'', }
 
-COMMITTEE_MEETING_SOURCE_DATA = {'committeebackgroundpagelink': u"",
-                                 'committee_agenda_canceled': u"",
-                                 'committee_agenda_committee_id': -1,
-                                 'committee_agenda_id': -1,
-                                 'committee_agenda_place': u"",
-                                 'committee_agenda_associated': u"",
-                                 'committee_agenda_associated_id': u"",
-                                 'committee_agenda_invited': u"",
-                                 'committee_agenda_invited1': u"",
-                                 'committee_agenda_note': u"",
-                                 'committee_agenda_special': u"",
-                                 'committee_agenda_sub': u"",
-                                 'date_creation': u"",
-                                 'oldurl': u"",
-                                 'startdatetime': u"",
-                                 'topic_id': u"",
-                                 'committee_agenda_date': datetime.datetime(1951, 1, 1, 0, 0),
-                                 'committee_agenda_session_content': u"",
-                                 'committee_date': u"",
-                                 'committee_date_order': u"",
-                                 'committee_day': u"",
-                                 'committee_location': u"",
-                                 'committee_material_hour': u"",
-                                 'committee_month': u"",
-                                 'material_comittee_id': u"",
-                                 'material_expiration_date': u"",
-                                 'material_id': u"",
-                                 'meeting_is_paused': u"",
-                                 'meeting_start': u"",
-                                 'meeting_stop': u"",
-                                 'sd2committee_agenda_invite': u"",
-                                 'streaming_url': u"",
-                                 'title': u"",
-                                 'url': u"",}
-
-COMMITTEE_MEETING_EXPECTED_DATA = {'protocol': u'',
-                                   'session_content': u'',
-                                   'agenda_special ': u'',
-                                   'datetime': datetime.datetime(1951, 1, 1, 0, 0),
-                                   'material_expiration_date ': u'',
-                                   'id': -1,
-                                   'meeting_stop ': u'',
-                                   'agenda_associated_id ': u'', 'committee_id': -1, 'agenda_invite ': u'',
-                                   'title': u'', 'creation_date ': u'', 'agenda_invited1 ': u'', 'streaming_url ': u'',
-                                   'date ': u'', 'place ': u'', 'scraper_errors': u'', 'old_url ': u'', 'month ': u'',
-                                   'note ': u'', 'day ': u'', 'material_id ': u'', 'start_datetime ': u'',
-                                   'material_hour ': u'', 'is_paused ': u'', 'agenda_associated ': u'',
-                                   'date_order ': u'', 'meeting_start ': u'', 'location ': u'', 'topid_id ': u'',
-                                   'agenda_sub ': u'', 'url': u'', 'agenda_invited ': u'', 'agenda_canceled ': u'',
-                                   'material_committee_id ': u'', 'background_page_link ': u''
-                                   }
-
-
 class MockCommitteesResource(CommitteesResource):
 
     def _get_objects_by_main(self, void, proxies=None, **kwargs):
@@ -124,15 +71,6 @@ class MockCommitteesResource(CommitteesResource):
             Committee({"data": dict(COMMITTEE_SOURCE_DATA, committee_id=2)}),
             Committee({"data": dict(COMMITTEE_SOURCE_DATA, committee_id=3)}),
             Committee({"data": dict(COMMITTEE_SOURCE_DATA, committee_id=4)})
-        ]
-
-
-class MockCommitteeMeetingsResource(CommitteeMeetingsResource):
-
-    def _committee_meeting_get(self, committee_id, fromdate, proxies):
-        return [
-            CommitteeMeeting({"data": dict(COMMITTEE_MEETING_SOURCE_DATA, committee_agenda_id=5)}),
-            CommitteeMeeting({"data": dict(COMMITTEE_MEETING_SOURCE_DATA, committee_agenda_id=6)})
         ]
 
 
@@ -176,14 +114,32 @@ class ResourcesTestCase(BaseDatapackageTestCase):
     def test_committee_meetings(self):
         # committee meetings support only appending to csv
         data_root = self.given_temporary_data_root()
-        resource = MockCommitteeMeetingsResource("committee-meetings", data_root)
+        resource = CommitteeMeetingsResource("committee-meetings", data_root)
         # append meetings for the given committee
-        resource.append_for_committee(6)
-        # fetch them from the csv
-        fetched_items = MockCommitteeMeetingsResource("committee-meetings", data_root).fetch_from_datapackage()
+        resource.append_for_committee(6, mock=True)
+        # fetch them back from the csv
+        fetched_items = CommitteeMeetingsResource("committee-meetings", data_root).fetch_from_datapackage()
         fetched_items = [dict(oredered_dict.items()) for oredered_dict in fetched_items]
-        self.assertEqual(fetched_items, [dict(COMMITTEE_MEETING_EXPECTED_DATA, id=5),
-                                         dict(COMMITTEE_MEETING_EXPECTED_DATA, id=6)])
+        COMMITTEE_MEETING_EXPECTED_DATA = {'session_content': u'',
+                                           'agenda_special ': u'',
+                                           'datetime': datetime.datetime(2013, 5, 3, 16, 33),
+                                           'material_expiration_date ': u'',
+                                           'meeting_stop ': u'',
+                                           'agenda_associated_id ': u'', 'committee_id': None, 'agenda_invite ': u'',
+                                           'title': u'', 'creation_date ': u'', 'agenda_invited1 ': u'',
+                                           'streaming_url ': u'',
+                                           'date ': u'', 'place ': u'', 'scraper_errors': u'', 'old_url ': u'',
+                                           'month ': u'',
+                                           'note ': u'', 'day ': u'', 'material_id ': u'', 'start_datetime ': u'',
+                                           'material_hour ': u'', 'is_paused ': u'', 'agenda_associated ': u'',
+                                           'date_order ': u'', 'meeting_start ': u'', 'location ': u'',
+                                           'topid_id ': u'',
+                                           'agenda_sub ': u'', 'agenda_invited ': u'',
+                                           'agenda_canceled ': u'',
+                                           'material_committee_id ': u'', 'background_page_link ': u''}
+        self.assertEqual(fetched_items, [dict(COMMITTEE_MEETING_EXPECTED_DATA, url=u"mock url 1", id=1, datetime=datetime.datetime(2013, 5, 1, 16, 33)),
+                                         dict(COMMITTEE_MEETING_EXPECTED_DATA, url=u"mock url 2", id=2, datetime=datetime.datetime(2013, 5, 2, 16, 33)),
+                                         dict(COMMITTEE_MEETING_EXPECTED_DATA, url=u"mock url 3", id=3, datetime=datetime.datetime(2013, 5, 3, 16, 33))])
 
     def test_committee_meeting_protocols(self):
         # protocols only support appending

@@ -1,3 +1,2 @@
 unicodecsv==0.14.1
--e git://github.com/hasadna/knesset-data-python.git@8477ad1297378dfae5d78fbfde87dc81a43157bc#egg=knesset-data
-
+-e git://github.com/hasadna/knesset-data-python.git@b670368a41547e12fe3003a774b77f314e39a821#egg=knesset-data

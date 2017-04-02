@@ -4,6 +4,7 @@ python:
   - "2.7.3"
   - "2.7.9"
   # Python version on latest Ubuntu - used by developers
+  # also, datapackage is made only for this version (in .travis/script.sh)
   - "2.7.12"
 addons:
   apt:

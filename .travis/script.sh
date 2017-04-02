@@ -75,19 +75,25 @@ make_datapackage() {
     echo "TRAVIS_EVENT_TYPE=${TRAVIS_EVENT_TYPE}"
     echo "TRAVIS_TAG=${TRAVIS_TAG}"
     echo "DATAPACKAGE_LAST_DAYS=${DATAPACKAGE_LAST_DAYS}"
+    echo "TRAVIS_PYTHON_VERSION=${TRAVIS_PYTHON_VERSION}"
     if [ "${TRAVIS_EVENT_TYPE}" == "cron" ] || [ "${TRAVIS_TAG}" != "" ]; then
-        mkdir -p data
-        if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ]; then
-            echo "making datapackage for last ${DATAPACKAGE_LAST_DAYS} days"
-            if make_knesset_datapackage --days "${DATAPACKAGE_LAST_DAYS}" --debug --zip --http-proxy "socks5://localhost:8123" --skip-exceptions; then
-                echo "OK"
-                return 0
+        if [ "${TRAVIS_PYTHON_VERSION}" == "2.7.12" ]; then
+            mkdir -p data
+            if [ "${DATAPACKAGE_SSH_PROXY_KEY}" != "" ]; then
+                echo "making datapackage for last ${DATAPACKAGE_LAST_DAYS} days"
+                if make_knesset_datapackage --days "${DATAPACKAGE_LAST_DAYS}" --debug --zip --http-proxy "socks5://localhost:8123" --skip-exceptions; then
+                    echo "OK"
+                    return 0
+                else
+                    echo "failed to create datapackage"
+                    return 1
+                fi
             else
-                echo "failed to create datapackage"
-                return 1
+                echo "skipping datapackage creation because missing ssh proxy"
+                return 2
             fi
         else
-            echo "skipping datapackage creation because missing ssh proxy"
+            echo "skipping datapackage creation (we only create a datapackage for python version 2.7.12)"
             return 2
         fi
     else

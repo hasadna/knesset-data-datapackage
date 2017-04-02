@@ -8,6 +8,7 @@ from knesset_datapackage.base import CsvResource, BaseDatapackage, BaseResource,
 import shutil
 from knesset_datapackage.resources.dataservice import BaseKnessetDataServiceCollectionResource
 from knesset_data.dataservice.committees import Committee, CommitteeMeeting
+from knesset_data.dataservice.mocks import MockCommitteeMeeting
 
 
 
@@ -56,8 +57,9 @@ class CommitteeMeetingsResource(CsvResource):
                                             "name": "scraper_errors"})
         super(CommitteeMeetingsResource, self).__init__(name, parent_datapackage_path, json_table_schema)
 
-    def _committee_meeting_get(self, committee_id, fromdate, proxies):
-        return CommitteeMeeting.get(committee_id, fromdate, proxies=proxies)
+    def _committee_meeting_get(self, committee_id, fromdate, proxies, mock=False):
+        cm = CommitteeMeeting if not mock else MockCommitteeMeeting
+        return cm.get(committee_id, fromdate, proxies=proxies)
 
     def append_for_committee(self, committee_id, **make_kwargs):
         if not self._skip_resource(**make_kwargs):
@@ -65,7 +67,7 @@ class CommitteeMeetingsResource(CsvResource):
             fromdate = datetime.datetime.now().date() - datetime.timedelta(days=make_kwargs.get('days', 5))
             self.logger.info('appending committee meetings since {} for committee {}'.format(fromdate, committee_id))
             meeting = empty = object()
-            for meeting in self._committee_meeting_get(committee_id, fromdate, proxies=proxies):
+            for meeting in self._committee_meeting_get(committee_id, fromdate, proxies=proxies, mock=make_kwargs.get("mock", False)):
                 if not make_kwargs.get('committee_meeting_ids') or int(meeting.id) in make_kwargs.get('committee_meeting_ids'):
                     scraper_errors = []
                     if self._protocols_resource:
@@ -79,7 +81,7 @@ class CommitteeMeetingsResource(CsvResource):
                             else:
                                 raise
                     self.logger.debug('append committee meeting {}'.format(meeting.id))
-                    row = meeting.all_field_values()
+                    row = meeting.all_schema_field_values()
                     row["scraper_errors"] = "\n".join(scraper_errors)
                     self._append(row)
                 else:
