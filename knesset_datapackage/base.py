@@ -3,17 +3,18 @@ from datapackage.resource import Resource, TabularResource
 import os
 import logging
 import json
-import csv
+import unicodecsv
 from collections import OrderedDict
 import iso8601
 import zipfile
+from .utils import uncast_value
 
 
 class BaseResource(Resource):
 
     def __init__(self, name=None, parent_datapackage_path=None, descriptor=None):
         if not descriptor:
-            descriptor = {}
+            descriptor = OrderedDict()
         descriptor["name"] = name
         if name and parent_datapackage_path:
             default_base_path = os.path.join(parent_datapackage_path, name)
@@ -40,7 +41,7 @@ class BaseResource(Resource):
         # be sure to check _skip_resource - which logs some info messages and checks if resource should be skipped
         raise NotImplementedError()
 
-    def _skip_resource(self, include=None, exclude=None, dry_run=False, **kwargs):
+    def _skip_resource(self, include=None, exclude=None, dry_run=False, resources=None, **kwargs):
         if not hasattr(self, '_logged_skip_message'):
             self._logged_skip_message = True
             log = True
@@ -63,6 +64,12 @@ class BaseResource(Resource):
             self._descriptor.update({k: None for k in self._descriptor if k != "name"})
             self._descriptor["description"] = "resource skipped due to exclude filter"
             return True
+        elif resources and full_name not in resources:
+            if log:
+                self.logger.debug("skipping resource '{}' due to resources param".format(full_name))
+            self._descriptor.update({k: None for k in self._descriptor if k != "name"})
+            self._descriptor["description"] = "resource skipped due to resources param"
+            return True
         else:
             if log:
                 self.logger.info("processing datapackage resource '{}'".format(full_name))
@@ -74,9 +81,12 @@ class BaseResource(Resource):
             self._logger = logging.getLogger(self.__module__.replace("knesset_data.", ""))
         return self._logger
 
-    def get_path(self, relpath=None):
-        if relpath:
-            return os.path.join(self._base_path, relpath)
+    def get_file_path(self, ext):
+        return "{}{}".format(self.get_path(), ext)
+
+    def get_path(self, *relpaths):
+        if len(relpaths) > 0:
+            return os.path.join(self._base_path, *relpaths)
         else:
             return self._base_path
 
@@ -95,28 +105,37 @@ class CsvResource(BaseTabularResource):
                                 "schema": json_table_schema})
 
     def _get_field_csv_value(self, val, schema):
-        if val is None:
-            return None
-        elif schema["type"] == "datetime":
-            return val.isoformat().encode('utf8')
-        elif schema["type"] == "integer":
-            return val
-        elif schema["type"] == "string":
-            if hasattr(val, 'encode'):
-                return val.encode('utf8')
+        field_type = schema.get("type", "string")
+        try:
+            if val is None:
+                return None
+            elif field_type == "datetime":
+                return val.isoformat().encode('utf8')
+            elif field_type == "integer":
+                return val
+            elif field_type == "string":
+                if isinstance(val, (str, unicode)):
+                    try:
+                        return val.encode('utf8')
+                    except UnicodeDecodeError:
+                        # TODO: investigate further, why this should happen and if this logic is correct
+                        return json.dumps(val)
+                else:
+                    # TODO: check why this happens, I assume it's because of some special field
+                    return json.dumps(val)
             else:
-                # TODO: check why this happens, I assume it's because of some special field
+                # try different methods to encode the value
+                for f in (lambda val: val.encode('utf8'),
+                          lambda val: unicode(val).encode('utf8')):
+                    try:
+                        return f(val)
+                    except Exception:
+                        pass
+                self.logger.warn("failed to encode value for {}".format(schema["name"]))
                 return ""
-        else:
-            # try different methods to encode the value
-            for f in (lambda val: val.encode('utf8'),
-                      lambda val: unicode(val).encode('utf8')):
-                try:
-                    return f(val)
-                except Exception:
-                    pass
-            self.logger.warn("failed to encode value for {}".format(schema["name"]))
-            return ""
+        except Exception, e:
+            self.logger.error("failed to decode value '{}' for schema '{}'".format(val, schema))
+            raise
 
     def _get_field_original_value(self, csv_val, schema):
         val = csv_val.decode('utf8')
@@ -134,7 +153,7 @@ class CsvResource(BaseTabularResource):
 
     def _append(self, row, **make_kwargs):
         if not self._skip_resource(**make_kwargs):
-            # append a row to the csv file (creates the file and header if does not exist)
+            # append a row (with values in native python format) to the csv file (creates the file and header if does not exist)
             if not self.csv_path:
                 raise Exception('cannot append without a path')
             fields = self.descriptor["schema"]["fields"]
@@ -142,18 +161,22 @@ class CsvResource(BaseTabularResource):
                 self._csv_file_initialized = True
                 self.logger.info('writing csv resource to: {}'.format(self.csv_path))
                 with open(self.csv_path, 'wb') as csv_file:
-                    csv_writer = csv.writer(csv_file)
-                    csv_writer.writerow([field["name"] for field in fields])
+                    unicodecsv.writer(csv_file, encoding="utf-8").writerow([field["name"] for field in fields])
             with open(self.csv_path, 'ab') as csv_file:
-                csv_writer = csv.writer(csv_file)
-                csv_row = []
-                for field in fields:
-                    value = self._get_field_csv_value(row[field["name"]], field)
-                    csv_row.append(value)
-                csv_writer.writerow(csv_row)
+                unicodecsv.writer(csv_file, encoding="utf-8").writerow([uncast_value(row[field["name"]], field) for field in fields])
 
     def _get_empty_row(self):
-        return {field["name"]: self._get_field_csv_value("", field) for field in self.descriptor["schema"]["fields"]}
+        return {field["name"]: None for field in self.descriptor["schema"]["fields"]}
+
+    def _get_field_schema(self, field_name):
+        matching_fields = [field for field in self.descriptor["schema"]["fields"] if field["name"] == field_name]
+        if len(matching_fields) == 1:
+            return matching_fields[0]
+        else:
+            raise Exception("found {} fields named {}".format(len(matching_fields), field_name))
+
+    def _update_field_schema(self, field_name, updates):
+        self._get_field_schema(field_name).update(updates)
 
     @property
     def csv_path(self):
@@ -179,7 +202,7 @@ class CsvResource(BaseTabularResource):
             # after this point - kwargs are ignored as we are fetching from previously prepared csv data
             if self.csv_path and os.path.exists(self.csv_path):
                 with open(self.csv_path, 'rb') as csv_file:
-                    csv_reader = csv.reader(csv_file)
+                    csv_reader = unicodecsv.reader(csv_file)
                     header_row = None
                     for row in csv_reader:
                         if not header_row:
@@ -235,7 +258,7 @@ class CsvFilesResource(CsvResource, FilesResource):
      you are responsible to write the files to those paths and add the path (relative to the base_path) to the csv row
     """
 
-    def __init__(self, name, parent_datapackage_path, json_table_schema, file_fields):
+    def __init__(self, name=None, parent_datapackage_path=None, json_table_schema=None, file_fields=None):
         CsvResource.__init__(self, name, parent_datapackage_path, json_table_schema)
         # the descriptor path for csv is a single path to the csv file
         # we change it here so that the csv file will be the first path in a list of paths
@@ -252,7 +275,7 @@ class CsvFilesResource(CsvResource, FilesResource):
         :param row: OrderedDict of the csv row to append (must match the json_table_schema)
         :param make_kwargs: the global datapackage make_kwargs
         """
-        [FilesResource._append(self, row[field]) for field in self._file_fields]
+        [FilesResource._append(self, row[field]) for field in self._file_fields if row[field] and row[field] != ""]
         CsvResource._append(self, row, **make_kwargs)
 
 
@@ -335,6 +358,52 @@ class BaseDatapackage(DataPackage):
         else:
             raise LookupError("found more then 1 resource with name {}".format(name))
 
+    def _dict_recursively_remove_nulls(self, old_dict):
+        new_dict = OrderedDict()
+        for k in old_dict:
+            if old_dict[k] is not None:
+                if isinstance(old_dict[k], (dict, OrderedDict)):
+                    new_dict[k] = self._dict_recursively_remove_nulls(old_dict[k])
+                elif isinstance(old_dict[k], list):
+                    new_dict[k] = []
+                    for e in old_dict[k]:
+                        if isinstance(e, (dict, OrderedDict)):
+                            new_dict[k].append(self._dict_recursively_remove_nulls(e))
+                        else:
+                            new_dict[k].append(e)
+                else:
+                    new_dict[k] = old_dict[k]
+        return new_dict
+
+    def get_json_descriptor(self):
+        old_descriptor = self.descriptor
+        new_descriptor = OrderedDict()
+        new_descriptor["name"] = old_descriptor.pop("name")
+        new_descriptor["description"] = old_descriptor.pop("description", None)
+        new_descriptor["resources"] = []
+        for old_resource in self.descriptor.pop("resources"):
+            new_resource = OrderedDict()
+            new_resource["name"] = old_resource.pop("name")
+            new_resource["description"] = old_resource.pop("description", None)
+            new_resource["path"] = old_resource.pop("path", None)
+            old_schema = old_resource.pop("schema", None)
+            if old_schema:
+                new_schema = OrderedDict()
+                new_fields = []
+                for old_field in old_schema.pop("fields"):
+                    new_field = OrderedDict()
+                    new_field["name"] = old_field.pop("name")
+                    new_field["type"] = old_field.pop("type")
+                    new_field["description"] = old_field.pop("description", None)
+                    new_fields.append(new_field)
+                new_schema["fields"] = new_fields
+                new_schema.update(old_schema)
+                new_resource["schema"] = new_schema
+            new_resource.update(old_resource)
+            new_descriptor["resources"].append(new_resource)
+        new_descriptor.update(old_descriptor)
+        return json.dumps(self._dict_recursively_remove_nulls(new_descriptor), indent=True)
+
     def make(self, **kwargs):
         self.logger.info('making datapackage: "{}", base path: "{}"'.format(self.descriptor["name"], self.base_path))
         if not os.path.exists(self.base_path):
@@ -350,10 +419,10 @@ class BaseDatapackage(DataPackage):
                         self.logger.exception(e)
                         resource.descriptor["error"] = e.message
                     else:
-                        raise e
+                        raise
         self.logger.info('writing datapackage.json')
         with open(os.path.join(self.base_path, "datapackage.json"), 'w') as f:
-            f.write(json.dumps(self.descriptor, indent=True)+"\n")
+            f.write(self.get_json_descriptor()+"\n")
         self.logger.info('done')
 
     @property

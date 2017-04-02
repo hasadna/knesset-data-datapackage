@@ -83,7 +83,7 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
                 object = self._collection_get(object_id, proxies=proxies)
             except Exception, e:
                 if not skip_exceptions:
-                    raise e
+                    raise
                 else:
                     object = KnessetDataServiceObjectException(self.collection, None, e)
             yield object
@@ -155,7 +155,7 @@ class BaseKnessetDataServiceCollectionResource(CsvResource):
                             scraper_errors.append("exception generating {}: {}".format(self.descriptor["name"], e))
                         else:
                             self.logger.error("exception generating {}, stopping execution and raising the exception".format(self.descriptor["name"]))
-                            raise e
+                            raise
                 self.logger.debug('appending {} id {}'.format(self.object_name, object.id))
                 if self.track_generated_objects:
                     self._generated_objects.append(object)

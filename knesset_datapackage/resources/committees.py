@@ -77,7 +77,7 @@ class CommitteeMeetingsResource(CsvResource):
                                 self.logger.warning("exception generating protocols resource for committee {}, meeting {}: {}".format(committee_id, meeting.id, e))
                                 self.logger.debug(e, exc_info=1)
                             else:
-                                raise e
+                                raise
                     self.logger.debug('append committee meeting {}'.format(meeting.id))
                     row = meeting.all_field_values()
                     row["scraper_errors"] = "\n".join(scraper_errors)
@@ -145,7 +145,7 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                         self.logger.debug(e, exc_info=1)
                         scraper_errors.append("error getting original file: {}".format(e))
                     else:
-                        raise e
+                        raise
                 # text
                 with open(abs_text_file_path, 'w') as f:
                     try:
@@ -157,7 +157,7 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                             self.logger.debug(e, exc_info=1)
                             scraper_errors.append("error getting text file: {}".format(e))
                         else:
-                            raise e
+                            raise
                 # parts
                 with open(abs_parts_file_path, 'wb') as f:
                     csv_writer = csv.writer(f)
@@ -172,6 +172,6 @@ class CommitteeMeetingProtocolsResource(CsvFilesResource):
                             self.logger.debug(e, exc_info=1)
                             scraper_errors.append("error getting parts file: {}".format(e))
                         else:
-                            raise e
+                            raise
                 row["scraper_errors"] = ", ".join(scraper_errors)
                 self._append(row, **make_kwargs)

@@ -41,8 +41,8 @@ class ExceptionsTestCase(BaseDatapackageTestCase):
         self.assert_member_row(results_generator.next(), 200, "")
         self.assert_member_row(results_generator.next(), 201, "")
         self.assert_member_row(results_generator.next(), 202, "")
-        self.assert_member_row(results_generator.next(), "", "exception generating test-members-resource: member with exception on init")
-        self.assert_member_row(results_generator.next(), "", "exception generating test-members-resource: member with exception on parse")
+        self.assert_member_row(results_generator.next(), None, "exception generating test-members-resource: member with exception on init")
+        self.assert_member_row(results_generator.next(), None, "exception generating test-members-resource: member with exception on parse")
 
     def test_members_exception_make(self):
         resource = MockMembersResource("test-members-resource", self.data_root)
