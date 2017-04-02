@@ -67,8 +67,7 @@ class ExceptionsTestCase(BaseDatapackageTestCase):
 
     def test_exception_in_resource_while_making_datapackage(self):
         # default behavior - stop processing and raise exception
-        with self.assertRaises(Exception) as cm:
-            self.given_dummy_datapackage_was_made()
+        self.given_dummy_datapackage_was_made()
         self.assertEqual(cm.exception.message, "dummy resource exception")
         # with skip_exceptions enabled
         datapackage = self.given_dummy_datapackage_was_made(skip_exceptions=True)
