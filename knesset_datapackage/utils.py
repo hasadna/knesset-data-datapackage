@@ -47,6 +47,10 @@ def uncast_value(value, schema):
             return value.decode("utf-8")
         elif isinstance(value, unicode):
             return value
+        elif isinstance(value, (datetime.datetime, datetime.date)):
+            # this is a very common case where people use string type but value is actually a date/time
+            # usually we don't want to have this kind of behavior - but for this case it's what the people want
+            return value.isoformat()
         else:
             return json.dumps(value) if value is not None else u""
     elif schema["type"] in ("date", "datetime") and isinstance(value, (datetime.datetime, datetime.date)):
