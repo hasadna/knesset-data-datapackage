@@ -133,7 +133,7 @@ exit_success() {
 ### main ###
 
 if run_tests; then
-    if [ "`date '+%u'`" == "5" ]; then
+    if [ "${TRAVIS_EVENT_TYPE}" == "cron" ] && [ "`date '+%u'`" == "5" ]; then
         # every Friday - make a datapackage for last 120 days (instead of default which should be shorter)
         export DATAPACKAGE_LAST_DAYS=120
     fi
@@ -143,6 +143,12 @@ if run_tests; then
             DATAPACKAGE_URL="https://s3.amazonaws.com/${KNESSET_DATA_BUCKET}/${DATAPACKAGE_FILENAME}"
             if ! notify_datapackage_url "${DATAPACKAGE_URL}"; then
                 echo "notification to open knesset failed, but we will continue anyway because this feature is experimental"
+            fi
+            if [ "${TRAVIS_EVENT_TYPE}" != "cron" ] && [ "${TRAVIS_TAG}" != "" ]; then
+                # when publishing a release - make a larger datapackage as well
+                export DATAPACKAGE_LAST_DAYS=120
+                rm -rf data
+                make_datapackage
             fi
         elif [ $? == 1 ]; then
             exit_error
