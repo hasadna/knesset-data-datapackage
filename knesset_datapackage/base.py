@@ -3,10 +3,11 @@ from datapackage.resource import Resource, TabularResource
 import os
 import logging
 import json
-import csv
+import unicodecsv
 from collections import OrderedDict
 import iso8601
 import zipfile
+from .utils import uncast_value
 
 
 class BaseResource(Resource):
@@ -80,9 +81,12 @@ class BaseResource(Resource):
             self._logger = logging.getLogger(self.__module__.replace("knesset_data.", ""))
         return self._logger
 
-    def get_path(self, relpath=None):
-        if relpath:
-            return os.path.join(self._base_path, relpath)
+    def get_file_path(self, ext):
+        return "{}{}".format(self.get_path(), ext)
+
+    def get_path(self, *relpaths):
+        if len(relpaths) > 0:
+            return os.path.join(self._base_path, *relpaths)
         else:
             return self._base_path
 
@@ -101,23 +105,24 @@ class CsvResource(BaseTabularResource):
                                 "schema": json_table_schema})
 
     def _get_field_csv_value(self, val, schema):
+        field_type = schema.get("type", "string")
         try:
             if val is None:
                 return None
-            elif schema["type"] == "datetime":
+            elif field_type == "datetime":
                 return val.isoformat().encode('utf8')
-            elif schema["type"] == "integer":
+            elif field_type == "integer":
                 return val
-            elif schema["type"] == "string":
-                if hasattr(val, 'encode'):
+            elif field_type == "string":
+                if isinstance(val, (str, unicode)):
                     try:
                         return val.encode('utf8')
                     except UnicodeDecodeError:
                         # TODO: investigate further, why this should happen and if this logic is correct
-                        return val
+                        return json.dumps(val)
                 else:
                     # TODO: check why this happens, I assume it's because of some special field
-                    return ""
+                    return json.dumps(val)
             else:
                 # try different methods to encode the value
                 for f in (lambda val: val.encode('utf8'),
@@ -148,7 +153,7 @@ class CsvResource(BaseTabularResource):
 
     def _append(self, row, **make_kwargs):
         if not self._skip_resource(**make_kwargs):
-            # append a row to the csv file (creates the file and header if does not exist)
+            # append a row (with values in native python format) to the csv file (creates the file and header if does not exist)
             if not self.csv_path:
                 raise Exception('cannot append without a path')
             fields = self.descriptor["schema"]["fields"]
@@ -156,18 +161,22 @@ class CsvResource(BaseTabularResource):
                 self._csv_file_initialized = True
                 self.logger.info('writing csv resource to: {}'.format(self.csv_path))
                 with open(self.csv_path, 'wb') as csv_file:
-                    csv_writer = csv.writer(csv_file)
-                    csv_writer.writerow([field["name"] for field in fields])
+                    unicodecsv.writer(csv_file, encoding="utf-8").writerow([field["name"] for field in fields])
             with open(self.csv_path, 'ab') as csv_file:
-                csv_writer = csv.writer(csv_file)
-                csv_row = []
-                for field in fields:
-                    value = self._get_field_csv_value(row[field["name"]], field)
-                    csv_row.append(value)
-                csv_writer.writerow(csv_row)
+                unicodecsv.writer(csv_file, encoding="utf-8").writerow([uncast_value(row[field["name"]], field) for field in fields])
 
     def _get_empty_row(self):
-        return {field["name"]: self._get_field_csv_value("", field) for field in self.descriptor["schema"]["fields"]}
+        return {field["name"]: None for field in self.descriptor["schema"]["fields"]}
+
+    def _get_field_schema(self, field_name):
+        matching_fields = [field for field in self.descriptor["schema"]["fields"] if field["name"] == field_name]
+        if len(matching_fields) == 1:
+            return matching_fields[0]
+        else:
+            raise Exception("found {} fields named {}".format(len(matching_fields), field_name))
+
+    def _update_field_schema(self, field_name, updates):
+        self._get_field_schema(field_name).update(updates)
 
     @property
     def csv_path(self):
@@ -193,7 +202,7 @@ class CsvResource(BaseTabularResource):
             # after this point - kwargs are ignored as we are fetching from previously prepared csv data
             if self.csv_path and os.path.exists(self.csv_path):
                 with open(self.csv_path, 'rb') as csv_file:
-                    csv_reader = csv.reader(csv_file)
+                    csv_reader = unicodecsv.reader(csv_file)
                     header_row = None
                     for row in csv_reader:
                         if not header_row:
@@ -249,7 +258,7 @@ class CsvFilesResource(CsvResource, FilesResource):
      you are responsible to write the files to those paths and add the path (relative to the base_path) to the csv row
     """
 
-    def __init__(self, name, parent_datapackage_path, json_table_schema, file_fields):
+    def __init__(self, name=None, parent_datapackage_path=None, json_table_schema=None, file_fields=None):
         CsvResource.__init__(self, name, parent_datapackage_path, json_table_schema)
         # the descriptor path for csv is a single path to the csv file
         # we change it here so that the csv file will be the first path in a list of paths

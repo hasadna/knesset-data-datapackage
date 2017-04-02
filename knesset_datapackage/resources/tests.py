@@ -1,10 +1,13 @@
+# encoding: utf-8
 from .committees import CommitteesResource, CommitteeMeetingsResource, CommitteeMeetingProtocolsResource
 from knesset_data.dataservice.committees import Committee, CommitteeMeeting
+from .plenum import PlenumMeetingsResource
 from ..tests.base_datapackage_test_case import BaseDatapackageTestCase
 import datetime
 import os
-import csv
 import contextlib
+import unicodecsv
+from ..utils import cast_value
 
 # you can use this to get a template of the dataservice data
 # for example -
@@ -135,6 +138,12 @@ class MockCommitteeMeetingsResource(CommitteeMeetingsResource):
 
 class ResourcesTestCase(BaseDatapackageTestCase):
 
+    maxDiff = None
+
+    def _make_and_fetch_resource(self, get_resource, **make_kwargs):
+        get_resource().make(**make_kwargs)
+        return get_resource().fetch(**make_kwargs)
+
     def test_committees(self):
         # fetching directly
         self.assertEqual(list(MockCommitteesResource().fetch()), [dict(COMMITTEE_EXPECTED_DATA, id=3)])
@@ -150,7 +159,7 @@ class ResourcesTestCase(BaseDatapackageTestCase):
         data_root = self.given_temporary_data_root()
         MockCommitteesResource("committees", data_root).make()
         with open(os.path.join(data_root, "committees.csv")) as f:
-            lines = csv.reader(f.readlines())
+            lines = unicodecsv.reader(f.readlines())
             self.assertEqual(list(lines), [
                 ['id', 'type_id', 'parent_id', 'name', 'name_eng', 'name_arb', 'begin_date',
                  'end_date', 'description', 'description_eng', 'description_arb', 'note',
@@ -178,25 +187,20 @@ class ResourcesTestCase(BaseDatapackageTestCase):
 
     def test_committee_meeting_protocols(self):
         # protocols only support appending
-        data_root = self.given_temporary_data_root()
-        resource = CommitteeMeetingProtocolsResource("committee-meeting-protocols", data_root)
-        committee_id=6
-        meeting_id=7
-        meeting_datetime=datetime.datetime(1953,5,4)
+        resource = CommitteeMeetingProtocolsResource("committee-meeting-protocols", self.given_temporary_data_root())
+        committee_id, meeting_id, meeting_datetime = 6, 7, datetime.datetime(1953,5,4)
         # a contextmanager for mock protocol
         @contextlib.contextmanager
         def meeting_protocol():
-            yield type("MockProtocol",
-                       (object,),
-                       {"text": "Hello World!",
-                        "parts": [type("MockProtocolPart", (object,), {"header": "mock header", "body": "mock body"}),
-                                  type("MockProtocolPart", (object,), {"header": "mock header 2", "body": "mock body 2"})],
-                        "file_name": ""})
+            yield type("MockProtocol", (object,), {"text": "Hello World!",
+                                                   "parts": [type("MockProtocolPart", (object,), {"header": "mock header", "body": "mock body"}),
+                                                             type("MockProtocolPart", (object,), {"header": "mock header 2", "body": "mock body 2"})],
+                                                   "file_name": ""})
         # appending using the fake protocol
         resource.append_for_meeting(committee_id, meeting_id, meeting_datetime, meeting_protocol(), skip_exceptions=True)
         # checking the created files
-        with open(os.path.join(data_root, "committee-meeting-protocols.csv")) as f:
-            self.assertEqual(list(csv.reader(f.readlines())),
+        with open(resource.get_file_path(".csv")) as f:
+            self.assertEqual(list(unicodecsv.reader(f.readlines())),
                              [['committee_id', 'meeting_id', 'text',
                                'parts',
                                'original',
@@ -204,9 +208,38 @@ class ResourcesTestCase(BaseDatapackageTestCase):
                               ['6',            '7',          'committee_6/7_1953-05-04_00-00-00/protocol.txt',
                                'committee_6/7_1953-05-04_00-00-00/protocol.csv', '',
                                "error getting original file: [Errno 2] No such file or directory: ''"]])
-        with open(os.path.join(data_root, "committee-meeting-protocols", "committee_6/7_1953-05-04_00-00-00/protocol.txt")) as f:
+        with open(resource.get_path("committee_6", "7_1953-05-04_00-00-00", "protocol.txt")) as f:
             self.assertEqual(f.readlines(), ["Hello World!"])
-        with open(os.path.join(data_root, "committee-meeting-protocols", "committee_6/7_1953-05-04_00-00-00/protocol.csv")) as f:
-            self.assertEqual(f.readlines(), ['header,body\r\n',
-                                             'mock header,mock body\r\n',
-                                             'mock header 2,mock body 2\r\n'])
+        with open(resource.get_path("committee_6", "7_1953-05-04_00-00-00", "protocol.csv")) as f:
+            self.assertEqual(f.readlines(), ['header,body\r\n', 'mock header,mock body\r\n', 'mock header 2,mock body 2\r\n'])
+
+    def test_plenum_meetings(self):
+        # it's important to run the make of a resource, even if not checking the output - to test the casting of values
+        PlenumMeetingsResource("plenum", self.given_temporary_data_root()).make(mock=True, skip_exceptions=True)
+        resource = PlenumMeetingsResource("plenum", self.given_temporary_data_root())
+        results = list(resource.fetch(mock=True, skip_exceptions=True))
+        # results = list(PlenumMeetingsResource("plenum", data_root).fetch(mock=True, skip_exceptions=True))
+        self.assertEqual(len(results), 41)
+        self.assertEqual(results[0],
+                         # meeting fields
+                         {'date': datetime.date(2015, 5, 20),
+                          'url': u"http://www.knesset.gov.il/plenum/data/20_ptm_307658.doc",
+                          # protocol fields
+                          'booklet_num_heb': None,
+                          'booklet_meeting_num': 219,
+                          'knesset_num_heb': "עשרים",
+                          'datetime': datetime.datetime(2017, 3, 21, 16),
+                          'time_string': ("16", "00"),
+                          'knesset_num': 20,
+                          'header_text': """NL2017-03-21OMNITECHNLNLNLNLדברי הכנסתNLNLחוב' כ"אNLNLישיבה רי"טNLNLהישיבה המאתיים-ותשע-עשרה של הכנסת העשריםNLNLיום שלישי, כ"ג באדר התשע"ז (21 במרס 2017)NLNLירושלים, הכנסת, שעה 16:00NLNLתוכן ענייניםNLNLמסמכים שהונחו על שולחן הכנסת 5NLNLסגן מזכירת הכנסת נאזם בדר: 5NLNLנאומים בני דקה 6NLNLטלב אבו עראר (הרשימה המשותפת): 6NLNLיואב בן צור (ש"ס): 6NLNLאיתן ברושי (המחנה הציוני): 8NLNLענת ברקו (הליכוד): 8NLNLחיים ילין (יש עתיד): 10NLNLיהודה גליק (הליכוד): 10NLNLיוסי יונה (המחנה הציוני): 11NLNLמירב בן ארי (כולנו): 12NLNLמירב בן ארי (כולנו): 12NLNLקסניה סבטלובה (המחנה הציוני): 14NLNLדב חנין (הרשימה המשותפת): 15NLNLעאידה תומא סלימאן (הרשימה המשותפת): 16NLNLמנחם אליעז""",
+                          'meeting_num_heb': "מאתיים-ותשע-עשרה",
+                          'booklet_meeting_num_heb': "רי\"ט",
+                          'booklet_num': None,
+                          'date_string_heb': ('21', "מרס", '2017'),
+                          'day_heb': "שלישי",
+                          # protocol files
+                          'protocol_original': u"2015/05/20/20_ptm_307658.doc",
+                          'protocol_antiword_text': "2015/05/20/20_ptm_307658.doc.txt",
+                          'scraper_errors': "error getting protocol attribute booklet_num: 'NoneType' object has no attribute 'decode'",})
+        self.assertEqual(os.path.getsize(resource.get_path(results[0]["protocol_original"])), 868864)
+        self.assertEqual(os.path.getsize(resource.get_path(results[0]["protocol_antiword_text"])), 348448)

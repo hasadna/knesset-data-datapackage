@@ -1,9 +1,11 @@
 from knesset_datapackage.base import CsvFilesResource
 from knesset_data.html_scrapers.plenum import PlenumMeetings
 from knesset_data.html_scrapers.mocks import MockPlenumMeetings
+from knesset_data.protocols.plenum import PlenumProtocolFile
 import os, json
 from shutil import copy
 from collections import OrderedDict
+from ..utils import merge_table_schemas
 
 
 class PlenumMeetingsResource(CsvFilesResource):
@@ -12,22 +14,14 @@ class PlenumMeetingsResource(CsvFilesResource):
                             "time_string", "datetime"]
 
     def __init__(self, name, parent_datapackage_path):
-        fields = [{"name": "day", "type": "integer", "description": "meeting day (1 = 1st day of month is)"},
-                  {"name": "month", "type": "integer", "description": "meeting month (1 = January, 12 = December)"},
-                  {"name": "year", "type": "integer", "description": "meeting year"},
-                  {"name": "protocol_url", "type": "string", "description": "url to download the protocol file"},
-                  {"name": "protocol_original", "type": "string", "description": "original file (without processing), in case of error will be empty"},
-                  {"name": "protocol_antiword_text", "type": "string", "description": "text after antiword processing, in case of error will be empty"}]
-        for field in self.PROTOCOL_DATA_FIELDS:
-            field_name = field
-            field_type = "string"
-            field_description = None
-            fields.append({"name": "protocol_{}".format(field_name),
-                           "type": field_type,
-                           "description": field_description})
-        fields.append({"name": "scraper_errors", "type": "string", "description": "comma separated list of errors encountered"})
-        json_table_schema = {"fields": fields}
-        super(PlenumMeetingsResource, self).__init__(name, parent_datapackage_path, json_table_schema,
+        self._meeting_schema = PlenumMeetings.get_json_table_schema()
+        self._protocol_schema = PlenumProtocolFile.get_json_table_schema()
+        schema = merge_table_schemas(self._meeting_schema,
+                                     self._protocol_schema,
+                                     {"fields": [{"name": "protocol_original", "type": "string", "description": "original file (without processing), in case of error will be empty"},
+                                                 {"name": "protocol_antiword_text", "type": "string", "description": "text after antiword processing, in case of error will be empty"},
+                                                 {"name": "scraper_errors", "type": "string", "description": "comma separated list of errors encountered"}]})
+        super(PlenumMeetingsResource, self).__init__(name, parent_datapackage_path, schema,
                                                      file_fields=["protocol_original", "protocol_antiword_text"])
         self.descriptor["plenum_errors"] = []
 
@@ -46,47 +40,34 @@ class PlenumMeetingsResource(CsvFilesResource):
             else:
                 row = self._get_empty_row()
                 scraper_errors = []
-                meeting_path = os.path.join(str(plenum_meeting.year), str(plenum_meeting.month), str(plenum_meeting.day))
+                meeting_path = plenum_meeting.date.strftime("%Y/%m/%d")
                 os.makedirs(self.get_path(meeting_path))
-                row["protocol_original"] = os.path.join(meeting_path, plenum_meeting.url.split("/")[-1])
-                row["protocol_antiword_text"] = os.path.join(meeting_path, "{}.txt".format(plenum_meeting.url.split("/")[-1]))
+                protocol_original = os.path.join(meeting_path, plenum_meeting.url.split("/")[-1])
+                protocol_antiword_text = os.path.join(meeting_path, "{}.txt".format(plenum_meeting.url.split("/")[-1]))
                 try:
+                    row.update({field["name"]: getattr(plenum_meeting, field["name"]) for field in self._meeting_schema["fields"]})
                     with plenum_meeting.protocol as protocol:
-                        copy(protocol.file_name, self.get_path(row["protocol_original"]))
-                        with open(self.get_path(row["protocol_antiword_text"]), "w") as f:
+                        copy(protocol.file_name, self.get_path(protocol_original))
+                        row["protocol_original"] = protocol_original
+                        with open(self.get_path(protocol_antiword_text), "w") as f:
                             f.write(protocol.antiword_text)
-                        for field in self.PROTOCOL_DATA_FIELDS:
-                            field_name = field
+                        row["protocol_antiword_text"] = protocol_antiword_text
+                        for field in self._protocol_schema["fields"]:
                             try:
-                                val = getattr(protocol, field_name)
+                                row[field["name"]] = getattr(protocol, field["name"])
                             except Exception, e:
                                 if make_kwargs.get("skip_exceptions"):
-                                    val = ""
-                                    self.logger.debug("error getting plenum protocol {} attribute".format(field_name))
+                                    self.logger.debug("error getting plenum protocol {} attribute".format(field["name"]))
                                     self.logger.debug(e, exc_info=1)
-                                    scraper_errors.append("error getting protocol_{}: {}".format(field_name, e.message))
+                                    scraper_errors.append("error getting protocol attribute {}: {}".format(field["name"], e.message))
                                 else:
                                     raise
-                            row["protocol_{}".format(field_name)] = val
                 except Exception, e:
                     if make_kwargs.get("skip_exceptions"):
-                        row["protocol_original"] = ""
-                        row["protocol_antiword_text"] = ""
                         self.logger.warn("error getting plenum protocol ({}): {}".format(meeting_path, e.message))
                         self.logger.debug(e, exc_info=1)
                         scraper_errors.append(e.message)
                     else:
                         raise
-                row.update({"day": plenum_meeting.day,
-                            "month": plenum_meeting.month,
-                            "year": plenum_meeting.year,
-                            "protocol_url": plenum_meeting.url,
-                            "scraper_errors": ", ".join(scraper_errors)})
+                row["scraper_errors"] = ", ".join(scraper_errors)
                 yield row
-
-        # for filename, content in [("hello_world.doc", "hello there! (IN DOC FORMAT!)"), ("hello_world.txt", "hello there!"),
-        #                           ("goodbye_world.doc", "goodbye DOC"), ("goodbye_world.txt", "goodbye TXT")]:
-        #     with open(os.path.join(self._base_path, filename), "w") as f:
-        #         f.write(content)
-        # yield {"name": "hello world", "text file": "hello_world.txt", "doc file": "hello_world.doc"}
-        # yield {"name": "goodbye world", "text file": "goodbye_world.txt", "doc file": "goodbye_world.doc"}
