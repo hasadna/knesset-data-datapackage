@@ -1,1 +1,2 @@
 unicodecsv==0.14.1
+-e git://github.com/OriHoch/knesset-data-python.git@add-plenum-meetings-html-scraper-copied-from-oknesset#egg=knesset-data
