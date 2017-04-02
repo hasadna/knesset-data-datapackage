@@ -1,6 +1,10 @@
 language: python
 python:
-  - "2.7"
+  # Python versions encountered in the wild (AKA in Open Knesset)
+  - "2.7.3"
+  - "2.7.9"
+  # Python version on latest Ubuntu - used by developers
+  - "2.7.12"
 addons:
   apt:
     packages:
