@@ -26,11 +26,13 @@ Creating a datapackage using the CLI tool:
 
 * Prerequisites
   * you are inside an activated python 2.7 virtualenv
+    * `virtualenv knesset-datapackage`
+    * `cd knesset-datapackage`
+    * `. bin/activate`
 * Prepare the environment
-  * (my-datapackage) $ git clone https://github.com/hasadna/knesset-data-datapackage.git
-  * (my-datapackage) $ cd knesset-data-datapackage
-  * (my-datapackage) knesset-data-datapackage$ pip install -e .
+  * pip install https://github.com/hasadna/knesset-data-python/archive/master.zip
+  * pip install https://github.com/hasadna/knesset-data-datapackage/archive/master.zip
 * Run the CLI tool
-  * (my-datapackage) knesset-data-datapackage$ make_knesset_datapackage --help
+  * make_knesset_datapackage --help
   * by default the CLI tool creates the output and zip files inside data directory (e.g. knesset-data-datapackage/data)
   * you should delete existing files before creating a new datapackage
