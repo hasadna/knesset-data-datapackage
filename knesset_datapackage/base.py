@@ -138,7 +138,10 @@ class CsvResource(BaseTabularResource):
             raise
 
     def _get_field_original_value(self, csv_val, schema):
-        val = csv_val.decode('utf8')
+        try:
+            val = csv_val.decode('utf8')
+        except UnicodeEncodeError:
+            val = csv_val
         if schema["type"] == "datetime":
             return iso8601.parse_date(val, default_timezone=None) if val != '' else None
         elif schema["type"] == "integer":
@@ -211,7 +214,13 @@ class CsvResource(BaseTabularResource):
                             csv_row = OrderedDict(zip(header_row, row))
                             parsed_row = []
                             for field in self.descriptor["schema"]["fields"]:
-                                parsed_row.append((field["name"], self._get_field_original_value(csv_row[field["name"]], field)))
+                                try:
+                                    parsed_row.append((field["name"], self._get_field_original_value(csv_row[field["name"]], field)))
+                                except Exception as e:
+                                    import logging
+                                    message = "error parsing field %s in file %s : %s" % (field["name"],self.csv_path, str(e))
+                                    logging.exception(message)
+                                    raise Exception(message)
                             yield OrderedDict(parsed_row)
 
 
