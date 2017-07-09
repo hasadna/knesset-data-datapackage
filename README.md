@@ -3,6 +3,10 @@
 
 Provides Knesset data in easy to download and read formats (mostly CSV files).
 
+## Datapackages
+
+Data Packages are a lightweight containerization format for data. They provide the foundation for frictionless data transport. You can read more about the concept and format of [Friction less data](http://frictionlessdata.io) [specs](https://github.com/frictionlessdata/specs) and [datapackage tooling and other related code](https://github.com/frictionlessdata)
+
 ## Downloading a prepared datapackage zip
 
 We have a travis job that creates a datapackage for the last 120 days every week and a smaller package for last 5 days every day
